@@ -4,7 +4,7 @@
  * Format XNO amount with appropriate decimal places
  */
 export const formatXNO = (amount: number): string => {
-  return amount.toFixed(4) + " XNO";
+  return amount.toFixed(2);
 };
 
 /**
@@ -26,7 +26,14 @@ export const truncateAddress = (address: string, prefixLength = 5, suffixLength 
     return address;
   }
   
-  const prefix = address.slice(0, prefixLength);
+  let prefix = address.slice(0, prefixLength);
+  // If the prefix includes "nano_" or "xno_", adjust to include the full prefix
+  if (address.startsWith('nano_') && prefixLength < 5) {
+    prefix = 'nano';
+  } else if (address.startsWith('xno_') && prefixLength < 4) {
+    prefix = 'xno';
+  }
+  
   const suffix = address.slice(-suffixLength);
   
   return `${prefix}...${suffix}`;

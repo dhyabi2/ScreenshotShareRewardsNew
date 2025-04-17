@@ -35,8 +35,17 @@ export const api = {
   },
   
   likeContent: async (contentId: string, walletAddress: string): Promise<Content> => {
-    const res = await apiRequest("POST", `/api/content/${contentId}/like`, { walletAddress });
-    return res.json();
+    const response = await fetch(`/api/content/${contentId}/like`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ walletAddress })
+    });
+    
+    if (!response.ok) {
+      throw new Error("Failed to like content");
+    }
+    
+    return response.json();
   },
   
   reportContent: async (contentId: string, reason: string): Promise<void> => {
@@ -45,8 +54,17 @@ export const api = {
   
   // Wallet endpoints
   verifyWallet: async (address: string): Promise<WalletInfo> => {
-    const res = await apiRequest("POST", "/api/wallet/verify", { address });
-    return res.json();
+    const response = await fetch("/api/wallet/verify", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ address })
+    });
+    
+    if (!response.ok) {
+      throw new Error("Failed to verify wallet");
+    }
+    
+    return response.json();
   },
   
   getWalletBalance: async (address: string): Promise<{ balance: number }> => {
@@ -55,9 +73,18 @@ export const api = {
   },
   
   // Payment endpoints
-  checkPayment: async (paymentInfo: Omit<PaymentInfo, "paid">): Promise<PaymentInfo> => {
-    const res = await apiRequest("POST", "/api/payment/check", paymentInfo);
-    return res.json();
+  checkPayment: async (fromWallet: string, toWallet: string, amount: number, contentId?: string): Promise<{ paid: boolean }> => {
+    const response = await fetch("/api/payments/check", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ fromWallet, toWallet, amount, contentId })
+    });
+    
+    if (!response.ok) {
+      throw new Error("Failed to check payment");
+    }
+    
+    return response.json();
   },
   
   // Rewards endpoints
@@ -65,6 +92,14 @@ export const api = {
     const response = await fetch("/api/rewards/pool-stats");
     if (!response.ok) {
       throw new Error("Failed to fetch daily pool stats");
+    }
+    return response.json();
+  },
+  
+  getEstimatedEarnings: async (walletAddress: string): Promise<{ earnings: number }> => {
+    const response = await fetch(`/api/rewards/estimated/${walletAddress}`);
+    if (!response.ok) {
+      throw new Error("Failed to fetch estimated earnings");
     }
     return response.json();
   },

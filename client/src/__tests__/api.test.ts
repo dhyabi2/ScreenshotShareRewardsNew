@@ -1,10 +1,25 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { api } from '@/lib/api';
-import { Content } from '@/types';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { api } from '../lib/api';
+import { Content } from '../types';
 
-// Mock global fetch
-const mockFetch = vi.fn();
-global.fetch = mockFetch;
+// Mock fetch
+global.fetch = vi.fn();
+
+function mockFetchResponse(data: any) {
+  return Promise.resolve({
+    ok: true,
+    json: () => Promise.resolve(data),
+    status: 200
+  });
+}
+
+function mockFetchError(status = 500) {
+  return Promise.resolve({
+    ok: false,
+    status,
+    json: () => Promise.resolve({ error: 'Error message' })
+  });
+}
 
 describe('API Client', () => {
   beforeEach(() => {
@@ -14,181 +29,148 @@ describe('API Client', () => {
   describe('getAllContent', () => {
     it('should fetch all content', async () => {
       const mockContent = [
-        { id: '1', title: 'Content 1' },
-        { id: '2', title: 'Content 2' },
+        { id: '1', title: 'Test Content 1', type: 'image' },
+        { id: '2', title: 'Test Content 2', type: 'video' }
       ];
       
-      // Mock successful response
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: async () => mockContent,
-      });
+      // @ts-ignore - mocking fetch
+      fetch.mockResolvedValueOnce(mockFetchResponse(mockContent));
       
       const result = await api.getAllContent();
       
+      expect(fetch).toHaveBeenCalledWith('/api/content');
       expect(result).toEqual(mockContent);
-      expect(mockFetch).toHaveBeenCalledWith('/api/content');
     });
-
+    
     it('should handle errors', async () => {
-      // Mock error response
-      mockFetch.mockResolvedValueOnce({
-        ok: false,
-        status: 500,
-        statusText: 'Server Error',
-      });
+      // @ts-ignore - mocking fetch
+      fetch.mockResolvedValueOnce(mockFetchError());
       
       await expect(api.getAllContent()).rejects.toThrow();
-      expect(mockFetch).toHaveBeenCalledWith('/api/content');
+      expect(fetch).toHaveBeenCalledWith('/api/content');
     });
   });
 
   describe('getContent', () => {
     it('should fetch specific content by id', async () => {
-      const mockContent = { id: '1', title: 'Content 1' };
+      const mockResponse: Content = {
+        id: '1',
+        title: 'Test Content',
+        type: 'image',
+        originalUrl: '/test.jpg',
+        blurredUrl: '/test-blurred.jpg',
+        price: 10,
+        walletAddress: 'nano_test',
+        likeCount: 0,
+        createdAt: new Date().toISOString(),
+        isPaid: false,
+        status: 'active'
+      };
       
-      // Mock successful response
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: async () => mockContent,
-      });
+      // @ts-ignore - mocking fetch
+      fetch.mockResolvedValueOnce(mockFetchResponse(mockResponse));
       
       const result = await api.getContent('1');
       
-      expect(result).toEqual(mockContent);
-      expect(mockFetch).toHaveBeenCalledWith('/api/content/1');
+      expect(fetch).toHaveBeenCalledWith('/api/content/1');
+      expect(result).toEqual(mockResponse);
     });
   });
 
   describe('likeContent', () => {
     it('should send like request', async () => {
-      const mockResponse = { id: '1', likeCount: 5 };
+      const contentId = '1';
+      const walletAddress = 'nano_test123';
       
-      // Mock successful response
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: async () => mockResponse,
-      });
+      // @ts-ignore - mocking fetch
+      fetch.mockResolvedValueOnce(mockFetchResponse({ success: true }));
       
-      const result = await api.likeContent('1', 'nano_test123');
+      await api.likeContent(contentId, walletAddress);
       
-      expect(result).toEqual(mockResponse);
-      expect(mockFetch).toHaveBeenCalledWith('/api/content/1/like', expect.objectContaining({
+      expect(fetch).toHaveBeenCalledWith('/api/content/1/like', {
         method: 'POST',
-        headers: expect.any(Object),
-        body: expect.stringContaining('nano_test123'),
-      }));
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ walletAddress })
+      });
     });
   });
 
   describe('verifyWallet', () => {
     it('should verify wallet address', async () => {
-      const mockResponse = {
-        address: 'nano_test123',
-        balance: 5.5,
-        valid: true,
-      };
+      const walletAddress = 'nano_test123';
+      const mockResponse = { address: walletAddress, balance: 100, valid: true };
       
-      // Mock successful response
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: async () => mockResponse,
-      });
+      // @ts-ignore - mocking fetch
+      fetch.mockResolvedValueOnce(mockFetchResponse(mockResponse));
       
-      const result = await api.verifyWallet('nano_test123');
+      const result = await api.verifyWallet(walletAddress);
       
-      expect(result).toEqual(mockResponse);
-      expect(mockFetch).toHaveBeenCalledWith('/api/wallet/verify', expect.objectContaining({
+      expect(fetch).toHaveBeenCalledWith('/api/wallet/verify', {
         method: 'POST',
-        headers: expect.any(Object),
-        body: expect.stringContaining('nano_test123'),
-      }));
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ address: walletAddress })
+      });
+      expect(result).toEqual(mockResponse);
     });
   });
 
   describe('checkPayment', () => {
     it('should check payment status', async () => {
+      const fromWallet = 'nano_sender';
+      const toWallet = 'nano_receiver';
+      const amount = 10;
+      const contentId = '1';
       const mockResponse = { paid: true };
       
-      // Mock successful response
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: async () => mockResponse,
-      });
+      // @ts-ignore - mocking fetch
+      fetch.mockResolvedValueOnce(mockFetchResponse(mockResponse));
       
-      const paymentData = {
-        from: 'nano_sender123',
-        to: 'nano_receiver123',
-        amount: 1.5,
-        contentId: '1',
-      };
+      const result = await api.checkPayment(fromWallet, toWallet, amount, contentId);
       
-      const result = await api.checkPayment(paymentData);
-      
-      expect(result).toEqual(mockResponse);
-      expect(mockFetch).toHaveBeenCalledWith('/api/payment/check', expect.objectContaining({
+      expect(fetch).toHaveBeenCalledWith('/api/payments/check', {
         method: 'POST',
-        headers: expect.any(Object),
-        body: expect.stringContaining('nano_sender123'),
-      }));
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fromWallet, toWallet, amount, contentId })
+      });
+      expect(result).toEqual(mockResponse);
     });
   });
 
-  describe('getEstimatedEarnings', () => {
+  describe('getUserEstimatedEarnings', () => {
     it('should fetch estimated earnings', async () => {
-      const mockResponse = { estimatedEarnings: 25.5 };
+      const walletAddress = 'nano_test123';
+      const mockResponse = { estimatedEarnings: 50 };
       
-      // Mock successful response
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: async () => mockResponse,
-      });
+      // @ts-ignore - mocking fetch
+      fetch.mockResolvedValueOnce(mockFetchResponse(mockResponse));
       
-      const result = await api.getEstimatedEarnings('nano_test123');
+      const result = await api.getUserEstimatedEarnings(walletAddress);
       
-      expect(result).toEqual(mockResponse.estimatedEarnings);
-      expect(mockFetch).toHaveBeenCalledWith('/api/rewards/estimated-earnings', expect.objectContaining({
+      expect(fetch).toHaveBeenCalledWith('/api/rewards/estimated-earnings', {
         method: 'POST',
-        headers: expect.any(Object),
-        body: expect.stringContaining('nano_test123'),
-      }));
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ walletAddress })
+      });
+      expect(result).toEqual(mockResponse);
     });
   });
 
   describe('uploadContent', () => {
     it('should upload content', async () => {
-      const mockResponse: Content = {
-        id: '1',
-        title: 'Test Upload',
-        type: 'image',
-        originalUrl: '/uploads/test-image.jpg',
-        blurredUrl: '/uploads/test-image-blur.jpg',
-        price: 0.5,
-        walletAddress: 'nano_test123',
-        likeCount: 0,
-        createdAt: new Date().toISOString(),
-        isPaid: false,
-        status: 'active',
-      };
-      
-      // Mock successful response
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: async () => mockResponse,
-      });
-      
       const formData = new FormData();
-      formData.append('title', 'Test Upload');
-      formData.append('price', '0.5');
-      formData.append('wallet', 'nano_test123');
+      const mockResponse = { id: '1', title: 'New Content' };
+      
+      // @ts-ignore - mocking fetch
+      fetch.mockResolvedValueOnce(mockFetchResponse(mockResponse));
       
       const result = await api.uploadContent(formData);
       
-      expect(result).toEqual(mockResponse);
-      expect(mockFetch).toHaveBeenCalledWith('/api/content/upload', expect.objectContaining({
+      expect(fetch).toHaveBeenCalledWith('/api/content/upload', {
         method: 'POST',
-        body: expect.any(FormData),
-      }));
+        body: formData,
+        credentials: 'include'
+      });
+      expect(result).toEqual(mockResponse);
     });
   });
 });
