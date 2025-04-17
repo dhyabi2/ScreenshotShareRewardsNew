@@ -388,8 +388,8 @@ class WalletService {
     const baseUrl = `nano:${address}`;
     const url = amount ? `${baseUrl}?amount=${this.xnoToRaw(amount.toString())}` : baseUrl;
     
-    // Use nanocrawler.cc API to generate QR code
-    return `https://nanocrawler.cc/api/qr/${encodeURIComponent(url)}`;
+    // Use a more reliable QR code API
+    return `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(url)}`;
   }
 
   /**
