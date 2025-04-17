@@ -34,7 +34,12 @@ export default function Navbar() {
           </div>
           <div className="flex items-center">
             <div className="hidden md:block">
-              <div className="flex items-center ml-4 md:ml-6">
+              <div className="flex items-center ml-4 md:ml-6 space-x-4">
+                <Link href="/wallet">
+                  <a className="inline-flex items-center px-3 py-1 border border-transparent text-sm font-medium rounded-md text-primary-600 bg-primary-50 hover:bg-primary-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500">
+                    My Wallet
+                  </a>
+                </Link>
                 <span className="text-sm font-medium text-gray-500">Daily Pool:</span>
                 <span className="ml-2 px-3 py-1 rounded-full text-sm font-medium bg-[#F7B801] text-white">
                   {poolAmount ? `${poolAmount} XNO` : "Loading..."}

@@ -13,6 +13,20 @@ class XNOService {
   private publicKey: string;
   private useRealAPI: boolean;
   
+  /**
+   * Validate a Nano wallet address format
+   */
+  public isValidAddress(address: string): boolean {
+    // Basic validation for Nano addresses
+    if (!address) return false;
+    if (!address.startsWith('nano_')) return false;
+    if (address.length !== 65) return false; // Standard nano addresses are 65 chars
+    
+    // Check that the address contains only valid characters (alphanumeric except 'l', 'v', '0')
+    const validChars = /^[13456789abcdefghijkmnopqrstuwxyz_]+$/;
+    return validChars.test(address);
+  }
+  
   constructor() {
     // Get API endpoint from environment or use Nano RPC endpoint
     this.apiUrl = 'https://rpc.nano.to';

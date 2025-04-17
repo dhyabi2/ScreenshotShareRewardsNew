@@ -381,7 +381,13 @@ class WalletService {
    */
   isValidAddress(address: string): boolean {
     // Basic validation for Nano addresses
-    return xnoService.isValidAddress(address);
+    if (!address) return false;
+    if (!address.startsWith('nano_')) return false;
+    if (address.length !== 65) return false; // Standard nano addresses are 65 chars
+    
+    // Check that the address contains only valid characters (alphanumeric except 'l', 'v', '0')
+    const validChars = /^[13456789abcdefghijkmnopqrstuwxyz_]+$/;
+    return validChars.test(address);
   }
 
   /**
