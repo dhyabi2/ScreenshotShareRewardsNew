@@ -385,11 +385,23 @@ class WalletService {
    * Generate a deposit QR code URL for a specific address
    */
   getDepositQrCodeUrl(address: string, amount?: number): string {
-    const baseUrl = `nano:${address}`;
-    const url = amount ? `${baseUrl}?amount=${this.xnoToRaw(amount.toString())}` : baseUrl;
+    // Create a proper deep link URL for XNO wallets
+    // Format is: nano:<address> (standard format used by most Nano wallets)
+    // Some wallets might also support nano:<address>?amount=<raw_amount>
+    
+    // First, ensure the address is properly formatted - remove nano_ prefix if needed
+    const cleanAddress = address.startsWith('nano_') ? address : `nano_${address}`;
+    
+    // Create the proper URL format for XNO/Nano wallets
+    const qrData = amount 
+      ? `${cleanAddress}?amount=${this.xnoToRaw(amount.toString())}` 
+      : cleanAddress;
+    
+    // For better compatibility, don't include the nano: protocol prefix in the QR code itself
+    // This makes the QR code work with more wallets
     
     // Use a more reliable QR code API
-    return `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(url)}`;
+    return `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(qrData)}&format=png`;
   }
 
   /**
