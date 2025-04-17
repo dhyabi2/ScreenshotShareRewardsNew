@@ -34,6 +34,14 @@ export const api = {
     return response.json();
   },
   
+  getContentByWallet: async (walletAddress: string): Promise<Content[]> => {
+    const response = await fetch(`/api/content/wallet/${walletAddress}`);
+    if (!response.ok) {
+      throw new Error("Failed to fetch wallet content");
+    }
+    return response.json();
+  },
+  
   likeContent: async (contentId: string, walletAddress: string): Promise<Content> => {
     const response = await fetch(`/api/content/${contentId}/like`, {
       method: "POST",

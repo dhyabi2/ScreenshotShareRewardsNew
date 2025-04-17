@@ -68,7 +68,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  // Get specific content
+  // Get content by wallet address - must be before the :id route to avoid conflict
+  app.get('/api/content/wallet/:walletAddress', async (req, res) => {
+    try {
+      const { walletAddress } = req.params;
+      
+      if (!walletAddress) {
+        return res.status(400).json({ error: 'Wallet address is required' });
+      }
+      
+      const content = await storage.getContentByWallet(walletAddress);
+      res.json(content);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+  
+  // Get specific content by ID
   app.get('/api/content/:id', async (req, res) => {
     try {
       const id = parseInt(req.params.id);
