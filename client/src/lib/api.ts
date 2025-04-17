@@ -1,4 +1,4 @@
-import { Content, DailyPoolStats, WalletInfo, PaymentInfo } from "@/types";
+import { Content, DailyPoolStats, WalletInfo, PaymentInfo, EnhancedWalletInfo, Transaction } from "@/types";
 import { apiRequest } from "./queryClient";
 
 export const api = {
@@ -99,7 +99,7 @@ export const api = {
     return res.json();
   },
   
-  receiveTransactions: async (address: string, privateKey: string): Promise<{
+  receivePending: async (address: string, privateKey: string): Promise<{
     received: boolean;
     count: number;
     totalAmount: number;

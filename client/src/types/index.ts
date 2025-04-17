@@ -37,6 +37,24 @@ export interface WalletInfo {
   valid: boolean;
 }
 
+export interface EnhancedWalletInfo {
+  address: string;
+  balance: number;
+  qrCodeUrl?: string;
+  pending?: {
+    blocks: string[];
+    totalAmount: number;
+  };
+}
+
+export interface Transaction {
+  hash: string;
+  amount: string;
+  type: 'send' | 'receive';
+  account: string;
+  timestamp: string;
+}
+
 export interface PaymentInfo {
   from: string;
   to: string;
