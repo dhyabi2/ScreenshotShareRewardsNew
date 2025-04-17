@@ -2,6 +2,31 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { MemStorage } from '../storage';
 import { Content, InsertContent, InsertLike, InsertPayment, InsertReport } from '../../shared/schema.js';
 
+// Helper to fix test compatibility with schema
+const fixInsertContent = (data: any): InsertContent => {
+  // Remove fields not in insertContentSchema
+  const { likeCount, status, isPaid, ...rest } = data;
+  return rest as InsertContent;
+};
+
+const fixInsertLike = (data: any): InsertLike => {
+  // Remove fields not in insertLikeSchema
+  const { createdAt, ...rest } = data;
+  return rest as InsertLike;
+};
+
+const fixInsertPayment = (data: any): InsertPayment => {
+  // Remove fields not in insertPaymentSchema
+  const { createdAt, status, confirmed, ...rest } = data;
+  return rest as InsertPayment;
+};
+
+const fixInsertReport = (data: any): InsertReport => {
+  // Remove fields not in insertReportSchema
+  const { createdAt, status, ...rest } = data;
+  return rest as InsertReport;
+};
+
 describe('MemStorage', () => {
   let storage: MemStorage;
 
