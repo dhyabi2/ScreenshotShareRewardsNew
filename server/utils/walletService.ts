@@ -1,6 +1,7 @@
 import fetch from 'node-fetch';
 import crypto from 'crypto';
 import { xnoService } from './xnoService';
+import { isValidXNOAddress } from '../helpers/validators';
 
 interface WalletInfo {
   address: string;
@@ -46,7 +47,7 @@ class WalletService {
    */
   async getWalletInfo(address: string): Promise<WalletInfo> {
     // Start with basic format validation
-    if (!this.isValidAddress(address)) {
+    if (!isValidXNOAddress(address)) {
       throw new Error('Invalid XNO wallet address format');
     }
 
@@ -244,7 +245,7 @@ class WalletService {
    * Send XNO from one wallet to another
    */
   async sendTransaction(fromAddress: string, privateKey: string, toAddress: string, amountXno: number): Promise<{ success: boolean, hash?: string, error?: string }> {
-    if (!this.isValidAddress(fromAddress) || !this.isValidAddress(toAddress)) {
+    if (!isValidXNOAddress(fromAddress) || !isValidXNOAddress(toAddress)) {
       return { success: false, error: 'Invalid wallet address' };
     }
 
@@ -410,7 +411,7 @@ class WalletService {
    */
   async verifyWalletOnBlockchain(address: string): Promise<boolean> {
     try {
-      if (!this.isValidAddress(address)) {
+      if (!isValidXNOAddress(address)) {
         return false;
       }
       
@@ -445,7 +446,7 @@ class WalletService {
     } catch (error) {
       console.error('Error verifying wallet on blockchain:', error);
       // Default to basic validation on errors
-      return this.isValidAddress(address);
+      return isValidXNOAddress(address);
     }
   }
 
