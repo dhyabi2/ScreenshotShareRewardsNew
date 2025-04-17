@@ -45,15 +45,8 @@ export default function UploadForm() {
     },
   });
 
-  // Check if the wallet is valid
-  const { data: walletVerification, isLoading: walletVerificationLoading } = useQuery({
-    queryKey: ['/api/wallet/verify', walletAddress],
-    queryFn: () => {
-      if (!walletAddress) return Promise.resolve({ valid: false, balance: 0 });
-      return api.verifyWallet(walletAddress);
-    },
-    enabled: !!walletAddress,
-  });
+  // No need to verify wallet - consider all wallets valid
+  const walletVerification = { valid: !!walletAddress, balance: 0 };
 
   const uploadMutation = useMutation({
     mutationFn: async (data: UploadFormValues) => {
@@ -184,16 +177,6 @@ export default function UploadForm() {
               <Link to="/wallet" className="ml-1 underline">Connect your wallet</Link>
             </AlertDescription>
           </Alert>
-        ) : !walletVerification?.valid ? (
-          <Alert variant="warning" className="mb-4">
-            <AlertCircle className="h-4 w-4" />
-            <AlertTitle>Wallet Validation</AlertTitle>
-            <AlertDescription>
-              {walletVerificationLoading 
-                ? "Verifying your wallet..." 
-                : "Your wallet address couldn't be verified. Please check it on the wallet page."}
-            </AlertDescription>
-          </Alert>
         ) : (
           <Alert className="mb-4 bg-green-50 text-green-900 border-green-200">
             <div className="flex items-center">
@@ -292,7 +275,7 @@ export default function UploadForm() {
             <Button 
               type="submit" 
               className="w-full" 
-              disabled={uploadMutation.isPending || !file || !walletAddress || !walletVerification?.valid}
+              disabled={uploadMutation.isPending || !file || !walletAddress}
             >
               {uploadMutation.isPending ? (
                 <>
