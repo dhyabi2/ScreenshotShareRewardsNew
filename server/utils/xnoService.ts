@@ -14,22 +14,10 @@ class XNOService {
   private useRealAPI: boolean;
   
   /**
-   * Validate a Nano wallet address format
+   * Validate a Nano wallet address format using the shared validator
    */
   public isValidAddress(address: string): boolean {
-    // Basic validation for Nano addresses
-    if (!address) return false;
-    
-    // Support both nano_ and xno_ prefixes
-    if (!address.startsWith('nano_') && !address.startsWith('xno_')) return false;
-    
-    // Standard nano addresses are 65 chars (nano_ + 59 chars)
-    if (address.length !== 65) return false;
-    
-    // Check that the address contains only valid characters (alphanumeric except 'l', 'v', '0')
-    // This is a simplified validation - it doesn't check the checksum
-    const validChars = /^(nano|xno)_[13456789abcdefghijkmnopqrstuwxyz]+$/;
-    return validChars.test(address);
+    return isValidXNOAddress(address);
   }
   
   constructor() {
