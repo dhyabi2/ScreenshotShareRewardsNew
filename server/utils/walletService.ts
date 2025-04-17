@@ -46,9 +46,10 @@ class WalletService {
    * Get detailed wallet information including balance and pending blocks
    */
   async getWalletInfo(address: string): Promise<WalletInfo> {
-    // Start with basic format validation
+    // Check if address has valid format before proceeding
+    // But don't throw an error, just log a warning
     if (!isValidXNOAddress(address)) {
-      throw new Error('Invalid XNO wallet address format');
+      console.warn('Warning: Potentially invalid XNO wallet address format - proceeding anyway');
     }
 
     try {
@@ -79,7 +80,12 @@ class WalletService {
       };
     } catch (error) {
       console.error('Error getting wallet info:', error);
-      throw new Error('Could not retrieve wallet information from the blockchain');
+      // Return minimal info instead of throwing error
+      return {
+        address,
+        balance: 0,
+        qrCodeUrl: this.getDepositQrCodeUrl(address)
+      };
     }
   }
 

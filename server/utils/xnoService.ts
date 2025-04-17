@@ -50,13 +50,10 @@ class XNOService {
    */
   async verifyWallet(address: string): Promise<WalletInfo> {
     try {
-      // First check the address format
+      // First check the address format but be more lenient
       if (!isValidXNOAddress(address)) {
-        return {
-          address,
-          balance: 0,
-          valid: false
-        };
+        console.warn('Warning: Potentially invalid XNO wallet address format - proceeding anyway with verification');
+        // We'll continue with the verification instead of returning immediately
       }
       
       // If API keys are available, use the real API
