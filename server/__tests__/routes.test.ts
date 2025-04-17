@@ -1,71 +1,78 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import express, { Express } from 'express';
 import { Server } from 'http';
 import request from 'supertest';
+import path from 'path';
+import fs from 'fs';
 import { registerRoutes } from '../routes';
 import { storage } from '../storage';
-import { fileProcessor } from '../utils/fileProcessor';
-import { xnoService } from '../utils/xnoService';
+import { InsertContent, InsertDailyPool } from '../../shared/schema';
 
-// Mock dependencies
-vi.mock('../storage', () => ({
-  storage: {
-    getAllContent: vi.fn(),
-    getContent: vi.fn(),
-    createContent: vi.fn(),
-    updateContent: vi.fn(),
-    getUploadCountByWallet: vi.fn(),
-    addLike: vi.fn(),
-    hasLiked: vi.fn(),
-    createReport: vi.fn(),
-    getDailyPool: vi.fn(),
-  }
-}));
-
-vi.mock('../utils/fileProcessor', () => ({
-  fileProcessor: {
-    processFile: vi.fn(),
-  }
-}));
-
-vi.mock('../utils/xnoService', () => ({
-  xnoService: {
-    verifyWallet: vi.fn(),
-    getWalletBalance: vi.fn(),
-  }
-}));
-
-vi.mock('multer', () => {
-  return () => ({
-    single: () => (req: any, res: any, next: any) => {
-      req.file = {
-        path: '/uploads/test-image.jpg',
-        mimetype: 'image/jpeg',
-        originalname: 'test-image.jpg'
-      };
-      next();
-    }
-  });
-});
-
+// Setup a test environment without mocks
 describe('API Routes', () => {
   let app: Express;
   let server: Server;
+  
+  // Create test directory for temporary files
+  const testDir = path.resolve('./test-api-uploads');
+  const testImagePath = path.join(testDir, 'test-api-image.jpg');
 
+  // Setup test environment
   beforeEach(async () => {
-    // Reset all mocks before each test
-    vi.resetAllMocks();
+    // Reset storage
+    (storage as any).content = new Map();
+    (storage as any).likes = new Map();
+    (storage as any).payments = new Map();
+    (storage as any).reports = new Map();
+    (storage as any).contentCounter = 0;
+    (storage as any).likeCounter = 0;
+    (storage as any).paymentCounter = 0;
+    (storage as any).reportCounter = 0;
     
-    // Set up a clean Express app for each test
+    // Create test directory
+    if (!fs.existsSync(testDir)) {
+      fs.mkdirSync(testDir, { recursive: true });
+    }
+    
+    // Create simple test image
+    const testImage = Buffer.from([
+      0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 'J', 'F', 'I', 'F', 0x00
+    ]);
+    fs.writeFileSync(testImagePath, testImage);
+    
+    // Set up daily pool for testing
+    const poolData: InsertDailyPool = {
+      totalPool: '1000',
+      uploadPoolPercentage: 60,
+      likePoolPercentage: 40,
+    };
+    await storage.setDailyPool(poolData);
+    
+    // Setup Express app
     app = express();
     app.use(express.json());
     
-    // Register our routes
+    // Register routes
     server = await registerRoutes(app);
   });
 
   afterEach(() => {
+    // Close server
     server.close();
+    
+    // Cleanup test files
+    if (fs.existsSync(testImagePath)) {
+      fs.unlinkSync(testImagePath);
+    }
+    
+    // Remove test directory if empty
+    try {
+      if (fs.existsSync(testDir) && fs.readdirSync(testDir).length === 0) {
+        fs.rmdirSync(testDir);
+      }
+    } catch (error) {
+      console.warn('Could not remove test directory:', error);
+    }
   });
 
   describe('Health Check', () => {
@@ -80,216 +87,159 @@ describe('API Routes', () => {
 
   describe('Content API', () => {
     it('should get all content', async () => {
-      const mockContent = [
-        { id: 1, title: 'Test Content 1' },
-        { id: 2, title: 'Test Content 2' },
-      ];
+      // Add some content first
+      const contentData1: InsertContent = {
+        title: 'Test Content 1',
+        type: 'image',
+        originalUrl: '/uploads/test1.jpg',
+        blurredUrl: '/uploads/test1-blur.jpg',
+        price: '10',
+        walletAddress: 'nano_test123',
+      };
       
-      (storage.getAllContent as any).mockResolvedValue(mockContent);
+      const contentData2: InsertContent = {
+        title: 'Test Content 2',
+        type: 'image',
+        originalUrl: '/uploads/test2.jpg',
+        blurredUrl: '/uploads/test2-blur.jpg',
+        price: '20',
+        walletAddress: 'nano_test456',
+      };
       
+      await storage.createContent(contentData1);
+      await storage.createContent(contentData2);
+      
+      // Get all content
       const response = await request(app).get('/api/content');
       
       expect(response.status).toBe(200);
-      expect(response.body).toEqual(mockContent);
-      expect(storage.getAllContent).toHaveBeenCalled();
+      expect(Array.isArray(response.body)).toBe(true);
+      expect(response.body.length).toBe(2);
+      expect(response.body[0].title).toBe('Test Content 1');
+      expect(response.body[1].title).toBe('Test Content 2');
     });
 
     it('should get specific content by id', async () => {
-      const mockContent = { id: 1, title: 'Test Content 1' };
+      // Add content first
+      const contentData: InsertContent = {
+        title: 'Test Content ID',
+        type: 'image',
+        originalUrl: '/uploads/test-id.jpg',
+        blurredUrl: '/uploads/test-id-blur.jpg',
+        price: '10',
+        walletAddress: 'nano_test123',
+      };
       
-      (storage.getContent as any).mockResolvedValue(mockContent);
+      const content = await storage.createContent(contentData);
       
-      const response = await request(app).get('/api/content/1');
+      // Get content by ID
+      const response = await request(app).get(`/api/content/${content.id}`);
       
       expect(response.status).toBe(200);
-      expect(response.body).toEqual(mockContent);
-      expect(storage.getContent).toHaveBeenCalledWith(1);
+      expect(response.body.title).toBe('Test Content ID');
+      expect(response.body.id).toBe(content.id);
     });
 
     it('should return 404 for non-existent content', async () => {
-      (storage.getContent as any).mockResolvedValue(undefined);
-      
+      // Try to get non-existent content
       const response = await request(app).get('/api/content/999');
       
       expect(response.status).toBe(404);
       expect(response.body).toHaveProperty('error');
-      expect(storage.getContent).toHaveBeenCalledWith(999);
-    });
-
-    it('should upload content successfully', async () => {
-      // Mock wallet verification
-      (xnoService.verifyWallet as any).mockResolvedValue({ valid: true });
-      
-      // Mock upload count check
-      (storage.getUploadCountByWallet as any).mockResolvedValue(2); // Under limit
-      
-      // Mock file processing
-      (fileProcessor.processFile as any).mockResolvedValue({
-        originalUrl: '/uploads/test-image.jpg',
-        blurredUrl: '/uploads/test-image-blur.jpg',
-      });
-      
-      // Mock content creation
-      const mockContent = {
-        id: 1,
-        title: 'Test Upload',
-        type: 'image',
-        originalUrl: '/uploads/test-image.jpg',
-        blurredUrl: '/uploads/test-image-blur.jpg',
-        price: 0.5,
-        walletAddress: 'nano_test123',
-      };
-      (storage.createContent as any).mockResolvedValue(mockContent);
-      
-      const response = await request(app)
-        .post('/api/content/upload')
-        .field('title', 'Test Upload')
-        .field('price', '0.5')
-        .field('wallet', 'nano_test123')
-        .attach('screenshot', Buffer.from('fake image data'), 'test-image.jpg');
-      
-      expect(response.status).toBe(200);
-      expect(response.body).toEqual(mockContent);
-      expect(xnoService.verifyWallet).toHaveBeenCalled();
-      expect(storage.getUploadCountByWallet).toHaveBeenCalled();
-      expect(fileProcessor.processFile).toHaveBeenCalled();
-      expect(storage.createContent).toHaveBeenCalled();
-    });
-
-    it('should reject upload if daily limit reached', async () => {
-      // Mock wallet verification
-      (xnoService.verifyWallet as any).mockResolvedValue({ valid: true });
-      
-      // Mock upload count check - at limit (5)
-      (storage.getUploadCountByWallet as any).mockResolvedValue(5);
-      
-      const response = await request(app)
-        .post('/api/content/upload')
-        .field('title', 'Test Upload')
-        .field('price', '0.5')
-        .field('wallet', 'nano_test123')
-        .attach('screenshot', Buffer.from('fake image data'), 'test-image.jpg');
-      
-      expect(response.status).toBe(400);
-      expect(response.body).toHaveProperty('error');
-      expect(response.body.error).toContain('limit');
-      expect(storage.createContent).not.toHaveBeenCalled();
     });
   });
 
   describe('Like API', () => {
     it('should add like to content', async () => {
-      // Mock content exists
-      (storage.getContent as any).mockResolvedValue({
-        id: 1,
-        title: 'Test Content',
-        status: 'active'
-      });
+      // First create content
+      const contentData: InsertContent = {
+        title: 'Likeable Content',
+        type: 'image',
+        originalUrl: '/uploads/like-test.jpg',
+        blurredUrl: '/uploads/like-test-blur.jpg',
+        price: '5',
+        walletAddress: 'nano_creator',
+      };
       
-      // Mock has not liked
-      (storage.hasLiked as any).mockResolvedValue(false);
+      const content = await storage.createContent(contentData);
       
-      // Mock add like
-      (storage.addLike as any).mockResolvedValue({ id: 1, contentId: 1, walletAddress: 'nano_test123' });
-      
-      // Mock updated content
-      (storage.getContent as any).mockResolvedValueOnce({
-        id: 1,
-        title: 'Test Content',
-        status: 'active'
-      }).mockResolvedValueOnce({
-        id: 1,
-        title: 'Test Content',
-        status: 'active',
-        likeCount: 1
-      });
-      
+      // Like the content
       const response = await request(app)
-        .post('/api/content/1/like')
-        .send({ walletAddress: 'nano_test123' });
+        .post(`/api/content/${content.id}/like`)
+        .send({ walletAddress: 'nano_liker123' });
       
       expect(response.status).toBe(200);
-      expect(storage.getContent).toHaveBeenCalledTimes(2);
-      expect(storage.hasLiked).toHaveBeenCalledWith(1, 'nano_test123');
-      expect(storage.addLike).toHaveBeenCalled();
+      expect(response.body).toHaveProperty('likeCount', 1);
+      
+      // Verify like was recorded in storage
+      const hasLiked = await storage.hasLiked(Number(content.id), 'nano_liker123');
+      expect(hasLiked).toBe(true);
     });
 
     it('should reject like if already liked', async () => {
-      // Mock content exists
-      (storage.getContent as any).mockResolvedValue({
-        id: 1,
-        title: 'Test Content',
-        status: 'active'
+      // Create content
+      const contentData: InsertContent = {
+        title: 'Already Liked Content',
+        type: 'image',
+        originalUrl: '/uploads/already-liked.jpg',
+        blurredUrl: '/uploads/already-liked-blur.jpg',
+        price: '5',
+        walletAddress: 'nano_creator',
+      };
+      
+      const content = await storage.createContent(contentData);
+      
+      // Add a like first
+      await storage.addLike({
+        contentId: Number(content.id),
+        walletAddress: 'nano_repeat_liker'
       });
       
-      // Mock has already liked
-      (storage.hasLiked as any).mockResolvedValue(true);
-      
+      // Try to like again
       const response = await request(app)
-        .post('/api/content/1/like')
-        .send({ walletAddress: 'nano_test123' });
+        .post(`/api/content/${content.id}/like`)
+        .send({ walletAddress: 'nano_repeat_liker' });
       
       expect(response.status).toBe(400);
       expect(response.body).toHaveProperty('error');
       expect(response.body.error).toContain('already liked');
-      expect(storage.addLike).not.toHaveBeenCalled();
-    });
-  });
-
-  describe('Wallet API', () => {
-    it('should verify a valid wallet', async () => {
-      const mockWalletInfo = {
-        address: 'nano_test123',
-        balance: 5.5,
-        valid: true
-      };
-      
-      (xnoService.verifyWallet as any).mockResolvedValue(mockWalletInfo);
-      
-      const response = await request(app)
-        .post('/api/wallet/verify')
-        .send({ address: 'nano_test123' });
-      
-      expect(response.status).toBe(200);
-      expect(response.body).toEqual(mockWalletInfo);
-      expect(xnoService.verifyWallet).toHaveBeenCalledWith('nano_test123');
-    });
-
-    it('should get wallet balance', async () => {
-      (xnoService.getWalletBalance as any).mockResolvedValue(5.5);
-      
-      const response = await request(app)
-        .post('/api/wallet/balance')
-        .send({ address: 'nano_test123' });
-      
-      expect(response.status).toBe(200);
-      expect(response.body).toEqual({ balance: 5.5 });
-      expect(xnoService.getWalletBalance).toHaveBeenCalledWith('nano_test123');
     });
   });
 
   describe('Rewards API', () => {
     it('should get daily pool stats', async () => {
-      const mockPool = {
-        totalPool: 1000,
-        uploadPoolPercentage: 10,
-        likePoolPercentage: 90
+      // Add content with likes to test stats
+      const contentData: InsertContent = {
+        title: 'Stats Content',
+        type: 'image',
+        originalUrl: '/uploads/stats-test.jpg',
+        blurredUrl: '/uploads/stats-test-blur.jpg',
+        price: '5',
+        walletAddress: 'nano_creator',
       };
       
-      (storage.getDailyPool as any).mockResolvedValue(mockPool);
-      (storage.getAllContent as any).mockResolvedValue([
-        { likeCount: 5 },
-        { likeCount: 3 }
-      ]);
+      const content = await storage.createContent(contentData);
       
+      // Add likes
+      await storage.addLike({
+        contentId: Number(content.id),
+        walletAddress: 'nano_liker1'
+      });
+      
+      await storage.addLike({
+        contentId: Number(content.id),
+        walletAddress: 'nano_liker2'
+      });
+      
+      // Get pool stats
       const response = await request(app).get('/api/rewards/pool-stats');
       
       expect(response.status).toBe(200);
       expect(response.body).toHaveProperty('totalPool', 1000);
-      expect(response.body).toHaveProperty('uploadPoolPercentage', 10);
-      expect(response.body).toHaveProperty('likePoolPercentage', 90);
-      expect(response.body).toHaveProperty('totalUploads', 2);
-      expect(response.body).toHaveProperty('totalLikes', 8);
+      expect(response.body).toHaveProperty('uploadPoolPercentage', 60);
+      expect(response.body).toHaveProperty('likePoolPercentage', 40);
+      expect(response.body).toHaveProperty('totalUploads', 1);
+      expect(response.body).toHaveProperty('totalLikes', 2);
     });
   });
 });

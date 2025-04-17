@@ -16,6 +16,16 @@ class XNOService {
     this.apiUrl = process.env.XNO_API_URL || 'https://app.natrium.io/api';
     // Get API key from environment
     this.apiKey = process.env.XNO_API_KEY || '';
+    
+    // Check if API key is missing and show a warning
+    if (!this.apiKey) {
+      console.warn('=== WARNING: XNO_API_KEY not set ===');
+      console.warn('For real XNO wallet verification and payments, please set the XNO_API_KEY');
+      console.warn('The app will use simulated XNO transactions until the API key is provided');
+      console.warn('================================================');
+    } else {
+      console.log('XNO API key detected - using real blockchain verification');
+    }
   }
   
   /**
@@ -32,8 +42,41 @@ class XNOService {
         };
       }
       
-      // For a real implementation, we would check the blockchain here
-      // For now, we'll consider any valid-format address as valid
+      // If API key is available, use the real API
+      if (this.apiKey) {
+        try {
+          // In a production environment, we would query the Nano/XNO blockchain API
+          const endpoint = `${this.apiUrl}/account/${address}`;
+          const response = await fetch(endpoint, {
+            method: 'GET',
+            headers: {
+              'Authorization': `Bearer ${this.apiKey}`
+            }
+          });
+          
+          if (response.ok) {
+            const data = await response.json() as any;
+            return {
+              address,
+              balance: parseFloat(data.balance) || 0,
+              valid: true
+            };
+          } else {
+            console.error('API returned error:', await response.text());
+            return {
+              address,
+              balance: 0,
+              valid: false
+            };
+          }
+        } catch (apiError) {
+          console.error('API call failed:', apiError);
+          // Fall back to local verification
+        }
+      }
+      
+      // If no API key or API failed, use local simulation
+      console.warn('XNO_API_KEY not set or API failed. Using simulated wallet verification.');
       const balance = await this.getWalletBalance(address);
       
       return {
@@ -75,14 +118,51 @@ class XNOService {
    */
   async checkPayment(fromWallet: string, toWallet: string, amount: number): Promise<boolean> {
     try {
-      // In a real implementation, this would query the Nano/XNO blockchain for recent transactions
-      // For development purposes, we'll simulate success
+      // First validate wallet addresses
+      if (!isValidXNOAddress(fromWallet) || !isValidXNOAddress(toWallet)) {
+        console.error('Invalid wallet address format');
+        return false;
+      }
       
-      // This would be replaced with actual blockchain verification
-      console.log(`Checking payment: ${fromWallet} -> ${toWallet} (${amount} XNO)`);
-      
-      // Simulate successful payment
-      return true;
+      // Check if API key is available for using an external service
+      if (this.apiKey) {
+        try {
+          // In a production environment, we would query the Nano/XNO blockchain API
+          // using the API key to verify the transaction
+          const endpoint = `${this.apiUrl}/transactions`;
+          const response = await fetch(endpoint, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${this.apiKey}`
+            },
+            body: JSON.stringify({
+              from: fromWallet,
+              to: toWallet,
+              amount: amount.toString()
+            })
+          });
+          
+          if (response.ok) {
+            const data = await response.json() as any;
+            return data.verified === true;
+          } else {
+            console.error('API returned error:', await response.text());
+            return false;
+          }
+        } catch (apiError) {
+          console.error('API call failed:', apiError);
+          return false;
+        }
+      } else {
+        // If no API key is available, log a warning that we need a real API key
+        console.warn('XNO_API_KEY not set. For real payment verification, please set up an API key.');
+        
+        // For testing purposes, we'll check the "balance" of the sender
+        // to see if they theoretically could have sent the payment
+        const senderInfo = await this.verifyWallet(fromWallet);
+        return senderInfo.valid && senderInfo.balance >= amount;
+      }
     } catch (error) {
       console.error('Error checking payment:', error);
       return false;
