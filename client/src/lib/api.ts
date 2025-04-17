@@ -72,6 +72,71 @@ export const api = {
     return res.json();
   },
   
+  // Enhanced wallet endpoints
+  getWalletInfo: async (address: string): Promise<{
+    address: string;
+    balance: number;
+    qrCodeUrl?: string;
+    pending?: {
+      blocks: string[];
+      totalAmount: number;
+    };
+  }> => {
+    const res = await apiRequest("POST", "/api/wallet/info", { address });
+    return res.json();
+  },
+  
+  getWalletTransactions: async (address: string, count?: number): Promise<{
+    transactions: Array<{
+      hash: string;
+      type: string;
+      account: string;
+      amount: string;
+      timestamp: string;
+    }>;
+  }> => {
+    const res = await apiRequest("POST", "/api/wallet/transactions", { address, count });
+    return res.json();
+  },
+  
+  receiveTransactions: async (address: string, privateKey: string): Promise<{
+    received: boolean;
+    count: number;
+    totalAmount: number;
+  }> => {
+    const res = await apiRequest("POST", "/api/wallet/receive", { address, privateKey });
+    return res.json();
+  },
+  
+  sendTransaction: async (fromAddress: string, privateKey: string, toAddress: string, amount: number): Promise<{
+    success: boolean;
+    hash?: string;
+    error?: string;
+  }> => {
+    const res = await apiRequest("POST", "/api/wallet/send", { 
+      fromAddress, 
+      privateKey, 
+      toAddress, 
+      amount 
+    });
+    return res.json();
+  },
+  
+  generateWallet: async (): Promise<{
+    address: string;
+    privateKey: string;
+  }> => {
+    const res = await apiRequest("POST", "/api/wallet/generate");
+    return res.json();
+  },
+  
+  getDepositQrCode: async (address: string, amount?: number): Promise<{
+    qrCodeUrl: string;
+  }> => {
+    const res = await apiRequest("POST", "/api/wallet/deposit-qr", { address, amount });
+    return res.json();
+  },
+  
   // Payment endpoints
   checkPayment: async (fromWallet: string, toWallet: string, amount: number, contentId?: string): Promise<{ paid: boolean, method?: string }> => {
     const response = await fetch("/api/payment/check", {

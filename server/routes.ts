@@ -6,6 +6,7 @@ import path from "path";
 import fs from "fs";
 import { fileProcessor } from "./utils/fileProcessor";
 import { xnoService } from "./utils/xnoService";
+import { walletService } from "./utils/walletService";
 import { rewardSystem } from "./utils/rewardSystem";
 
 const DAILY_UPLOAD_LIMIT = 5; // Maximum uploads per wallet per day
@@ -241,6 +242,103 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const balance = await xnoService.getWalletBalance(address);
       res.json({ balance });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+  
+  // Enhanced wallet endpoints with walletService
+  app.post('/api/wallet/info', async (req, res) => {
+    try {
+      const { address } = req.body;
+      
+      if (!address) {
+        return res.status(400).json({ error: 'Wallet address is required' });
+      }
+      
+      const walletInfo = await walletService.getWalletInfo(address);
+      res.json(walletInfo);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+  
+  app.post('/api/wallet/transactions', async (req, res) => {
+    try {
+      const { address, count = 10 } = req.body;
+      
+      if (!address) {
+        return res.status(400).json({ error: 'Wallet address is required' });
+      }
+      
+      const transactions = await walletService.getTransactionHistory(address, count);
+      res.json({ transactions });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+  
+  app.post('/api/wallet/receive', async (req, res) => {
+    try {
+      const { address, privateKey } = req.body;
+      
+      if (!address || !privateKey) {
+        return res.status(400).json({ error: 'Wallet address and private key are required' });
+      }
+      
+      const result = await walletService.receivePending(address, privateKey);
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+  
+  app.post('/api/wallet/send', async (req, res) => {
+    try {
+      const { fromAddress, privateKey, toAddress, amount } = req.body;
+      
+      if (!fromAddress || !privateKey || !toAddress || !amount) {
+        return res.status(400).json({ 
+          error: "Missing required parameters: fromAddress, privateKey, toAddress, amount" 
+        });
+      }
+      
+      const amountFloat = parseFloat(amount);
+      if (isNaN(amountFloat) || amountFloat <= 0) {
+        return res.status(400).json({ error: "Amount must be a positive number" });
+      }
+      
+      const result = await walletService.sendTransaction(fromAddress, privateKey, toAddress, amountFloat);
+      
+      if (!result.success) {
+        return res.status(400).json({ error: result.error || "Transaction failed" });
+      }
+      
+      res.json({ success: true, hash: result.hash });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+  
+  app.post('/api/wallet/generate', async (req, res) => {
+    try {
+      const wallet = walletService.generateWallet();
+      res.json(wallet);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+  
+  app.post('/api/wallet/deposit-qr', async (req, res) => {
+    try {
+      const { address, amount } = req.body;
+      
+      if (!address) {
+        return res.status(400).json({ error: 'Wallet address is required' });
+      }
+      
+      const qrCodeUrl = walletService.getDepositQrCodeUrl(address, amount);
+      res.json({ qrCodeUrl });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
