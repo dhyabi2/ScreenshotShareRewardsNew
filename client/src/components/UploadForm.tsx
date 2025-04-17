@@ -1,22 +1,23 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { api } from "@/lib/api";
-import { isValidXNOAddress } from "@/lib/xno";
-import { Loader2 } from "lucide-react";
+import { Loader2, AlertCircle } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { queryClient } from "@/lib/queryClient";
+import { Link } from "wouter";
 
+// Modified schema without wallet address (it will be taken from localStorage)
 const uploadFormSchema = z.object({
   title: z.string().min(3, "Title must be at least 3 characters").max(100, "Title is too long"),
   price: z.coerce.number().min(0, "Price cannot be negative").max(1000, "Price too high"),
-  walletAddress: z.string().refine(isValidXNOAddress, "Please enter a valid XNO wallet address"),
 });
 
 type UploadFormValues = z.infer<typeof uploadFormSchema>;
@@ -26,14 +27,32 @@ export default function UploadForm() {
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
+  const [walletAddress, setWalletAddress] = useState("");
+
+  // Get wallet address from localStorage
+  useEffect(() => {
+    const savedWallet = localStorage.getItem('walletAddress');
+    if (savedWallet) {
+      setWalletAddress(savedWallet);
+    }
+  }, []);
 
   const form = useForm<UploadFormValues>({
     resolver: zodResolver(uploadFormSchema),
     defaultValues: {
       title: "",
       price: 0,
-      walletAddress: "",
     },
+  });
+
+  // Check if the wallet is valid
+  const { data: walletVerification, isLoading: walletVerificationLoading } = useQuery({
+    queryKey: ['/api/wallet/verify', walletAddress],
+    queryFn: () => {
+      if (!walletAddress) return Promise.resolve({ valid: false, balance: 0 });
+      return api.verifyWallet(walletAddress);
+    },
+    enabled: !!walletAddress,
   });
 
   const uploadMutation = useMutation({
@@ -42,11 +61,19 @@ export default function UploadForm() {
         throw new Error("Please select a file to upload");
       }
 
+      if (!walletAddress) {
+        throw new Error("Please connect your wallet first");
+      }
+
+      if (!walletVerification?.valid) {
+        throw new Error("Your wallet address is not valid");
+      }
+
       const formData = new FormData();
       formData.append("screenshot", file);
       formData.append("title", data.title);
       formData.append("price", data.price.toString());
-      formData.append("wallet", data.walletAddress);
+      formData.append("wallet", walletAddress);
 
       return api.uploadContent(formData);
     },
@@ -143,8 +170,39 @@ export default function UploadForm() {
     <Card>
       <CardHeader>
         <CardTitle>Upload Screenshot or Video</CardTitle>
+        <CardDescription>
+          Your content will be rewarded based on likes and engagement.
+        </CardDescription>
       </CardHeader>
       <CardContent>
+        {!walletAddress ? (
+          <Alert variant="destructive" className="mb-4">
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>Wallet Not Connected</AlertTitle>
+            <AlertDescription>
+              You need to connect your XNO wallet to upload content. 
+              <Link to="/wallet" className="ml-1 underline">Connect your wallet</Link>
+            </AlertDescription>
+          </Alert>
+        ) : !walletVerification?.valid ? (
+          <Alert variant="warning" className="mb-4">
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>Wallet Validation</AlertTitle>
+            <AlertDescription>
+              {walletVerificationLoading 
+                ? "Verifying your wallet..." 
+                : "Your wallet address couldn't be verified. Please check it on the wallet page."}
+            </AlertDescription>
+          </Alert>
+        ) : (
+          <Alert className="mb-4 bg-green-50 text-green-900 border-green-200">
+            <div className="flex items-center">
+              <div className="h-2 w-2 rounded-full bg-green-500 mr-2"></div>
+              <div className="text-sm">Connected to wallet: <span className="font-mono text-xs">{walletAddress.substring(0, 10)}...{walletAddress.substring(walletAddress.length - 5)}</span></div>
+            </div>
+          </Alert>
+        )}
+
         <div
           className={`dropzone rounded-lg p-6 text-center cursor-pointer mb-4 border-2 border-dashed ${
             isDragging ? "border-primary bg-primary/5" : "border-gray-300"
@@ -225,27 +283,17 @@ export default function UploadForm() {
                   <FormControl>
                     <Input type="number" min="0" step="0.01" placeholder="0.01" {...field} />
                   </FormControl>
-                  <FormDescription>Set to 0 for free content</FormDescription>
+                  <FormDescription>Set to 0 for free content or set a price to make it premium</FormDescription>
                   <FormMessage />
                 </FormItem>
               )}
             />
             
-            <FormField
-              control={form.control}
-              name="walletAddress"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Your XNO Wallet Address</FormLabel>
-                  <FormControl>
-                    <Input className="font-mono text-xs" placeholder="nano_1abc123..." {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            
-            <Button type="submit" className="w-full" disabled={uploadMutation.isPending || !file}>
+            <Button 
+              type="submit" 
+              className="w-full" 
+              disabled={uploadMutation.isPending || !file || !walletAddress || !walletVerification?.valid}
+            >
               {uploadMutation.isPending ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
