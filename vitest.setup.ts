@@ -1,12 +1,12 @@
 import { afterAll, afterEach, beforeAll } from 'vitest';
 import { setupServer } from 'msw/node';
-import { rest } from 'msw';
+import { http, HttpResponse } from 'msw';
 
 // Mock handlers for API requests
 const handlers = [
   // Mock content endpoints
-  rest.get('/api/content', (req, res, ctx) => {
-    return res(ctx.json([]));
+  http.get('/api/content', () => {
+    return HttpResponse.json([]);
   }),
   
   // Add more mock handlers as needed
