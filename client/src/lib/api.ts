@@ -73,11 +73,11 @@ export const api = {
   },
   
   // Payment endpoints
-  checkPayment: async (fromWallet: string, toWallet: string, amount: number, contentId?: string): Promise<{ paid: boolean }> => {
-    const response = await fetch("/api/payments/check", {
+  checkPayment: async (fromWallet: string, toWallet: string, amount: number, contentId?: string): Promise<{ paid: boolean, method?: string }> => {
+    const response = await fetch("/api/payment/check", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ fromWallet, toWallet, amount, contentId })
+      body: JSON.stringify({ from: fromWallet, to: toWallet, amount, contentId })
     });
     
     if (!response.ok) {
@@ -96,16 +96,15 @@ export const api = {
     return response.json();
   },
   
-  getEstimatedEarnings: async (walletAddress: string): Promise<{ earnings: number }> => {
-    const response = await fetch(`/api/rewards/estimated/${walletAddress}`);
+  getEstimatedEarnings: async (walletAddress: string): Promise<{ estimatedEarnings: number }> => {
+    const response = await fetch(`/api/rewards/estimated-earnings`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ walletAddress })
+    });
     if (!response.ok) {
       throw new Error("Failed to fetch estimated earnings");
     }
     return response.json();
-  },
-  
-  getUserEstimatedEarnings: async (walletAddress: string): Promise<{ estimatedEarnings: number }> => {
-    const res = await apiRequest("POST", "/api/rewards/estimated-earnings", { walletAddress });
-    return res.json();
   }
 };
