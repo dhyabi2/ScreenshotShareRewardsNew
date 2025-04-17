@@ -2,31 +2,6 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { MemStorage } from '../storage';
 import { Content, InsertContent, InsertLike, InsertPayment, InsertReport } from '../../shared/schema.js';
 
-// Helper to fix test compatibility with schema
-const fixInsertContent = (data: any): InsertContent => {
-  // Remove fields not in insertContentSchema
-  const { likeCount, status, isPaid, ...rest } = data;
-  return rest as InsertContent;
-};
-
-const fixInsertLike = (data: any): InsertLike => {
-  // Remove fields not in insertLikeSchema
-  const { createdAt, ...rest } = data;
-  return rest as InsertLike;
-};
-
-const fixInsertPayment = (data: any): InsertPayment => {
-  // Remove fields not in insertPaymentSchema
-  const { createdAt, status, confirmed, ...rest } = data;
-  return rest as InsertPayment;
-};
-
-const fixInsertReport = (data: any): InsertReport => {
-  // Remove fields not in insertReportSchema
-  const { createdAt, status, ...rest } = data;
-  return rest as InsertReport;
-};
-
 describe('MemStorage', () => {
   let storage: MemStorage;
 
@@ -41,11 +16,8 @@ describe('MemStorage', () => {
         type: 'image',
         originalUrl: '/uploads/test.jpg',
         blurredUrl: '/uploads/test-blurred.jpg',
-        price: 10,
+        price: '10',
         walletAddress: 'nano_test1234',
-        likeCount: 0,
-        status: 'active',
-        isPaid: false
       };
 
       const content = await storage.createContent(contentData);
@@ -63,11 +35,8 @@ describe('MemStorage', () => {
         type: 'image',
         originalUrl: '/uploads/test1.jpg',
         blurredUrl: '/uploads/test1-blurred.jpg',
-        price: 10,
+        price: '10',
         walletAddress: 'nano_test1234',
-        likeCount: 0,
-        status: 'active',
-        isPaid: false
       };
 
       const contentData2: InsertContent = {
@@ -75,11 +44,8 @@ describe('MemStorage', () => {
         type: 'video',
         originalUrl: '/uploads/test2.mp4',
         blurredUrl: '/uploads/test2-blurred.jpg',
-        price: 20,
+        price: '20',
         walletAddress: 'nano_test5678',
-        likeCount: 0,
-        status: 'active',
-        isPaid: false,
         durationSeconds: 120
       };
 
@@ -98,11 +64,8 @@ describe('MemStorage', () => {
         type: 'image',
         originalUrl: '/uploads/test.jpg',
         blurredUrl: '/uploads/test-blurred.jpg',
-        price: 10,
+        price: '10',
         walletAddress: 'nano_test1234',
-        likeCount: 0,
-        status: 'active',
-        isPaid: false
       };
 
       const content = await storage.createContent(contentData);
@@ -119,19 +82,16 @@ describe('MemStorage', () => {
         type: 'image',
         originalUrl: '/uploads/test.jpg',
         blurredUrl: '/uploads/test-blurred.jpg',
-        price: 10,
+        price: '10',
         walletAddress: 'nano_test1234',
-        likeCount: 0,
-        status: 'active',
-        isPaid: false
       };
 
       const content = await storage.createContent(contentData);
-      const updatedContent = await storage.updateContent(Number(content.id), { title: 'Updated Title', price: 15 });
+      const updatedContent = await storage.updateContent(Number(content.id), { title: 'Updated Title', price: '15' });
       
       expect(updatedContent).toBeDefined();
       expect(updatedContent?.title).toBe('Updated Title');
-      expect(updatedContent?.price).toBe(15);
+      expect(updatedContent?.price).toBe('15');
       expect(updatedContent?.originalUrl).toBe(content.originalUrl);
     });
 
@@ -141,11 +101,8 @@ describe('MemStorage', () => {
         type: 'image',
         originalUrl: '/uploads/test.jpg',
         blurredUrl: '/uploads/test-blurred.jpg',
-        price: 10,
+        price: '10',
         walletAddress: 'nano_test1234',
-        likeCount: 0,
-        status: 'active',
-        isPaid: false
       };
 
       const content = await storage.createContent(contentData);
@@ -165,11 +122,8 @@ describe('MemStorage', () => {
         type: 'image',
         originalUrl: '/uploads/test1.jpg',
         blurredUrl: '/uploads/test1-blurred.jpg',
-        price: 10,
+        price: '10',
         walletAddress,
-        likeCount: 0,
-        status: 'active',
-        isPaid: false
       };
 
       const contentData2: InsertContent = {
@@ -177,11 +131,8 @@ describe('MemStorage', () => {
         type: 'video',
         originalUrl: '/uploads/test2.mp4',
         blurredUrl: '/uploads/test2-blurred.jpg',
-        price: 20,
+        price: '20',
         walletAddress,
-        likeCount: 0,
-        status: 'active',
-        isPaid: false,
         durationSeconds: 120
       };
 
@@ -203,11 +154,8 @@ describe('MemStorage', () => {
         type: 'image',
         originalUrl: '/uploads/test.jpg',
         blurredUrl: '/uploads/test-blurred.jpg',
-        price: 10,
+        price: '10',
         walletAddress: 'nano_creator123',
-        likeCount: 0,
-        status: 'active',
-        isPaid: false
       };
       
       const content = await storage.createContent(contentData);
@@ -216,7 +164,6 @@ describe('MemStorage', () => {
       const like: InsertLike = {
         contentId: Number(content.id),
         walletAddress: 'nano_liker456',
-        createdAt: new Date()
       };
       
       const addedLike = await storage.addLike(like);
@@ -237,11 +184,8 @@ describe('MemStorage', () => {
         type: 'image',
         originalUrl: '/uploads/test.jpg',
         blurredUrl: '/uploads/test-blurred.jpg',
-        price: 10,
+        price: '10',
         walletAddress: 'nano_creator123',
-        likeCount: 0,
-        status: 'active',
-        isPaid: false
       };
       
       const content = await storage.createContent(contentData);
@@ -256,7 +200,6 @@ describe('MemStorage', () => {
       const like: InsertLike = {
         contentId,
         walletAddress: likerWallet,
-        createdAt: new Date()
       };
       
       await storage.addLike(like);
@@ -272,11 +215,9 @@ describe('MemStorage', () => {
       const payment: InsertPayment = {
         fromWallet: 'nano_sender123',
         toWallet: 'nano_receiver456',
-        amount: 10,
+        amount: '10',
         contentId: 1,
-        createdAt: new Date(),
-        status: 'completed',
-        confirmed: true
+        type: 'payment'
       };
       
       const createdPayment = await storage.createPayment(payment);
@@ -285,16 +226,20 @@ describe('MemStorage', () => {
       expect(createdPayment.fromWallet).toBe(payment.fromWallet);
       expect(createdPayment.toWallet).toBe(payment.toWallet);
       expect(createdPayment.amount).toBe(payment.amount);
-      expect(createdPayment.confirmed).toBe(payment.confirmed);
+      expect(createdPayment.type).toBe(payment.type);
     });
 
     it('should check if a payment exists', async () => {
-      const fromWallet = 'nano_sender123';
-      const toWallet = 'nano_receiver456';
-      const amount = 10;
-      const contentId = 1;
+      // Use unique identifiers to prevent test interference
+      const fromWallet = `nano_sender_${Date.now()}`;
+      const toWallet = `nano_receiver_${Date.now()}`;
+      const amount = 10.5; // Use a specific amount that's unlikely to exist by default
+      const contentId = Date.now(); // Use timestamp as unique ID
       
-      // Initially no payment should exist
+      // Delete any existing payments first to ensure a clean state
+      storage['payments'] = new Map(); // Reset the payments map
+      
+      // Verify no payment exists
       const paymentExistsBefore = await storage.checkPayment(fromWallet, toWallet, amount, contentId);
       expect(paymentExistsBefore).toBe(false);
       
@@ -302,11 +247,9 @@ describe('MemStorage', () => {
       const payment: InsertPayment = {
         fromWallet,
         toWallet,
-        amount,
+        amount: String(amount),
         contentId,
-        createdAt: new Date(),
-        status: 'completed',
-        confirmed: true
+        type: 'payment'
       };
       
       await storage.createPayment(payment);
@@ -323,8 +266,6 @@ describe('MemStorage', () => {
         contentId: 1,
         reason: 'inappropriate content',
         reporterWallet: 'nano_reporter123',
-        status: 'pending',
-        createdAt: new Date()
       };
       
       const createdReport = await storage.createReport(report);
@@ -332,7 +273,7 @@ describe('MemStorage', () => {
       expect(createdReport).toBeDefined();
       expect(createdReport.contentId).toBe(report.contentId);
       expect(createdReport.reason).toBe(report.reason);
-      expect(createdReport.status).toBe('pending');
+      expect(createdReport.resolved).toBe(false);
     });
 
     it('should get unresolved reports', async () => {
@@ -341,36 +282,34 @@ describe('MemStorage', () => {
         contentId: 1,
         reason: 'inappropriate content',
         reporterWallet: 'nano_reporter123',
-        status: 'pending',
-        createdAt: new Date()
       };
       
       const report2: InsertReport = {
         contentId: 2,
         reason: 'copyright violation',
         reporterWallet: 'nano_reporter456',
-        status: 'pending',
-        createdAt: new Date()
-      };
-      
-      const resolvedReport: InsertReport = {
-        contentId: 3,
-        reason: 'spam',
-        reporterWallet: 'nano_reporter789',
-        status: 'resolved',
-        createdAt: new Date()
       };
       
       await storage.createReport(report1);
       await storage.createReport(report2);
-      await storage.createReport(resolvedReport);
+      
+      // Create a resolved report manually (though this is implementation-dependent)
+      const report3 = await storage.createReport({
+        contentId: 3,
+        reason: 'spam',
+        reporterWallet: 'nano_reporter789',
+      });
+      
+      if (report3.id) {
+        await storage.resolveReport(Number(report3.id), 'resolved');
+      }
       
       const unresolvedReports = await storage.getUnresolvedReports();
       
       expect(unresolvedReports.length).toBe(2);
       expect(unresolvedReports.some(r => r.contentId === report1.contentId)).toBe(true);
       expect(unresolvedReports.some(r => r.contentId === report2.contentId)).toBe(true);
-      expect(unresolvedReports.every(r => r.status === 'pending')).toBe(true);
+      expect(unresolvedReports.every(r => r.resolved === false)).toBe(true);
     });
 
     it('should resolve a report', async () => {
@@ -378,8 +317,6 @@ describe('MemStorage', () => {
         contentId: 1,
         reason: 'inappropriate content',
         reporterWallet: 'nano_reporter123',
-        status: 'pending',
-        createdAt: new Date()
       };
       
       const createdReport = await storage.createReport(report);
@@ -389,17 +326,16 @@ describe('MemStorage', () => {
       
       expect(resolvedReport).toBeDefined();
       expect(resolvedReport?.id).toBe(createdReport.id);
-      expect(resolvedReport?.status).toBe('resolved');
+      expect(resolvedReport?.resolved).toBe(true);
     });
   });
 
   describe('Daily Pool Operations', () => {
     it('should set and get daily pool', async () => {
       const poolData = {
-        totalPool: 1000,
+        totalPool: '1000',
         uploadPoolPercentage: 40,
         likePoolPercentage: 60,
-        date: new Date()
       };
       
       const dailyPool = await storage.setDailyPool(poolData);

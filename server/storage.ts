@@ -233,8 +233,7 @@ export class MemStorage implements IStorage {
   }
   
   async checkPayment(fromWallet: string, toWallet: string, amount: number, contentId?: number): Promise<boolean> {
-    // In a real implementation, this would check the blockchain
-    // For now we'll simulate a successful payment
+    // Check if a matching payment exists
     const paymentExists = Array.from(this.payments.values()).some(
       (payment) => 
         payment.fromWallet === fromWallet && 
@@ -243,21 +242,7 @@ export class MemStorage implements IStorage {
         (contentId === undefined || payment.contentId === contentId)
     );
     
-    if (!paymentExists) {
-      // Simulate payment for testing
-      const payment: InsertPayment = {
-        fromWallet,
-        toWallet,
-        amount: amount as any, // Type conversion needed for the in-memory implementation
-        contentId: contentId,
-        type: contentId ? 'payment' : 'tip'
-      };
-      await this.createPayment(payment);
-      
-      return true;
-    }
-    
-    return true;
+    return paymentExists;
   }
   
   // Report methods
