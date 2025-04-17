@@ -257,9 +257,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: 'From, to, and amount are required' });
       }
       
-      const paid = await storage.checkPayment(from, to, parseFloat(amount), contentId);
+      // First check if we already have this payment recorded in our database
+      const locallyRecorded = await storage.checkPayment(from, to, parseFloat(amount), contentId);
       
-      res.json({ paid });
+      if (locallyRecorded) {
+        // Payment exists in our records
+        return res.json({ paid: true, method: 'database' });
+      }
+      
+      // If not in our database, check the blockchain
+      const amountFloat = parseFloat(amount);
+      const blockchainVerified = await xnoService.checkPayment(from, to, amountFloat);
+      
+      if (blockchainVerified) {
+        // Payment verified on blockchain, record it in our database
+        await storage.createPayment({
+          fromWallet: from,
+          toWallet: to,
+          amount: amountFloat,
+          contentId: contentId || null,
+          type: contentId ? 'payment' : 'tip'
+        });
+        
+        return res.json({ paid: true, method: 'blockchain' });
+      }
+      
+      // Payment not found in our database or on blockchain
+      res.json({ paid: false });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }

@@ -86,10 +86,15 @@ class XNOService {
             } else {
               // Account not found or has no opened blocks
               console.log('Account not found or has no opened blocks:', data.error);
+              
+              // Mark as invalid if account doesn't exist or has bad format
+              const isInvalid = data.error?.includes('Account not found') || 
+                               data.error?.includes('Bad account');
+              
               return {
                 address,
                 balance: 0,
-                valid: data.error?.includes('Account not found') ? false : true
+                valid: !isInvalid
               };
             }
           } else {
