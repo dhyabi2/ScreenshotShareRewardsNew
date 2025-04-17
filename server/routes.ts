@@ -338,7 +338,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   app.post('/api/wallet/generate', async (req, res) => {
     try {
-      const wallet = walletService.generateWallet();
+      const wallet = await walletService.generateWallet();
       res.json(wallet);
     } catch (error: any) {
       res.status(500).json({ error: error.message });

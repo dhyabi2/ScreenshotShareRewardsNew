@@ -45,32 +45,41 @@ class WalletService {
    * Get detailed wallet information including balance and pending blocks
    */
   async getWalletInfo(address: string): Promise<WalletInfo> {
+    // Start with basic format validation
     if (!this.isValidAddress(address)) {
-      throw new Error('Invalid XNO wallet address');
+      throw new Error('Invalid XNO wallet address format');
     }
 
-    const [balance, pendingBlocks] = await Promise.all([
-      this.getBalance(address),
-      this.getPendingBlocks(address)
-    ]);
+    try {
+      // Get balance and pending blocks in parallel
+      const [balance, pendingBlocks] = await Promise.all([
+        this.getBalance(address),
+        this.getPendingBlocks(address)
+      ]);
 
-    const qrCodeUrl = `https://nanocrawler.cc/api/qr/${address}`;
-    
-    let pending = undefined;
-    if (pendingBlocks && pendingBlocks.blocks && Object.keys(pendingBlocks.blocks).length > 0) {
-      const blocks = Object.keys(pendingBlocks.blocks);
-      const totalAmount = Object.values(pendingBlocks.blocks)
-        .reduce((sum, block: any) => sum + parseFloat(this.rawToXno(block.amount)), 0);
+      // Generate QR code URL for deposit
+      const qrCodeUrl = this.getDepositQrCodeUrl(address);
       
-      pending = { blocks, totalAmount };
-    }
+      // Process pending blocks if any
+      let pending = undefined;
+      if (pendingBlocks && pendingBlocks.blocks && Object.keys(pendingBlocks.blocks).length > 0) {
+        const blocks = Object.keys(pendingBlocks.blocks);
+        const totalAmount = Object.values(pendingBlocks.blocks)
+          .reduce((sum: number, block: any) => sum + parseFloat(this.rawToXno(block.amount)), 0);
+        
+        pending = { blocks, totalAmount };
+      }
 
-    return {
-      address,
-      balance,
-      qrCodeUrl,
-      pending
-    };
+      return {
+        address,
+        balance,
+        qrCodeUrl,
+        pending
+      };
+    } catch (error) {
+      console.error('Error getting wallet info:', error);
+      throw new Error('Could not retrieve wallet information from the blockchain');
+    }
   }
 
   /**
@@ -382,12 +391,62 @@ class WalletService {
   isValidAddress(address: string): boolean {
     // Basic validation for Nano addresses
     if (!address) return false;
-    if (!address.startsWith('nano_')) return false;
-    if (address.length !== 65) return false; // Standard nano addresses are 65 chars
+    
+    // Support both nano_ and xno_ prefixes
+    if (!address.startsWith('nano_') && !address.startsWith('xno_')) return false;
+    
+    // Standard nano addresses are 65 chars (nano_ + 59 chars)
+    if (address.length !== 65) return false;
     
     // Check that the address contains only valid characters (alphanumeric except 'l', 'v', '0')
-    const validChars = /^[13456789abcdefghijkmnopqrstuwxyz_]+$/;
+    // This is a simplified validation - it doesn't check the checksum
+    const validChars = /^(nano|xno)_[13456789abcdefghijkmnopqrstuwxyz]+$/;
     return validChars.test(address);
+  }
+  
+  /**
+   * Validate a wallet address against the blockchain
+   * For full validation (including against the blockchain), use verifyWallet
+   */
+  async verifyWalletOnBlockchain(address: string): Promise<boolean> {
+    try {
+      if (!this.isValidAddress(address)) {
+        return false;
+      }
+      
+      // Use account_info RPC call to check if account exists on the blockchain
+      const response = await fetch(this.apiUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${this.rpcKey}`
+        },
+        body: JSON.stringify({
+          action: 'account_info',
+          account: address
+        })
+      });
+      
+      if (!response.ok) {
+        return false;
+      }
+      
+      const data = await response.json();
+      
+      // If the account doesn't exist on-chain, it will have an "error" property
+      // However, an account that exists but has never received funds might still be valid
+      if (data.error === 'Account not found') {
+        // For unopened accounts, we'll still consider them valid if they pass the format check
+        return true;
+      }
+      
+      // If we get account info, it definitely exists
+      return !data.error;
+    } catch (error) {
+      console.error('Error verifying wallet on blockchain:', error);
+      // Default to basic validation on errors
+      return this.isValidAddress(address);
+    }
   }
 
   /**
@@ -437,19 +496,43 @@ class WalletService {
   /**
    * Generate a new keypair for a wallet
    */
-  generateWallet(): { address: string, privateKey: string } {
-    // This is a simplified implementation for demo purposes
-    // In a real application, you would use a proper Nano wallet library for safe key generation
-    
-    // Generate a "seed" as hex string
-    const seed = crypto.randomBytes(32).toString('hex');
-    
-    // In a real implementation, you would derive a keypair from this seed
-    // For now, we'll just create a dummy Nano address
-    const privateKey = seed; // In real impl, would be derived
-    const address = `nano_${seed.substring(0, 32)}${crypto.randomBytes(8).toString('hex')}`;
-    
-    return { address, privateKey };
+  async generateWallet(): Promise<{ address: string, privateKey: string }> {
+    try {
+      if (!this.rpcKey || !this.publicKey) {
+        throw new Error('XNO API credentials are required to generate a wallet');
+      }
+      
+      // Use the RPC API to create a wallet
+      const response = await fetch(`${this.apiUrl}/key/create`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${this.rpcKey}`
+        },
+        body: JSON.stringify({
+          action: 'key_create'
+        })
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Failed to generate wallet: ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      
+      // Return properly formatted data
+      if (data && data.private && data.public && data.account) {
+        return {
+          address: data.account,
+          privateKey: data.private
+        };
+      } else {
+        throw new Error('Invalid response from key generation API');
+      }
+    } catch (error) {
+      console.error('Error generating wallet:', error);
+      throw error;
+    }
   }
 }
 
