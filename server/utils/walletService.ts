@@ -166,43 +166,68 @@ class WalletService {
   /**
    * Process any pending (unreceived) blocks in the wallet
    */
-  async receivePending(address: string, privateKey: string): Promise<{ received: boolean, count: number, totalAmount: number }> {
+  async receivePending(address: string, privateKey: string): Promise<{ received: boolean, count: number, totalAmount: number, debug?: any }> {
     if (!privateKey) {
-      throw new Error('Private key is required to receive pending transactions');
+      console.warn('WARNING: No private key provided for receiving pending transactions');
+      return { 
+        received: false, 
+        count: 0, 
+        totalAmount: 0, 
+        debug: { error: 'No private key provided' } 
+      };
     }
 
     try {
-      // Get pending blocks
-      const pending = await this.getPendingBlocks(address);
+      console.log(`Attempting to receive pending funds for wallet: ${address}`);
+      const pendingInfo = await this.getPendingBlocks(address);
       
-      if (!pending.blocks || Object.keys(pending.blocks).length === 0) {
+      if (!pendingInfo.blocks || Object.keys(pendingInfo.blocks).length === 0) {
+        console.log('No pending blocks to receive');
         return { received: false, count: 0, totalAmount: 0 };
       }
-
-      // Process each pending block
-      let processedCount = 0;
-      let totalAmount = 0;
-
-      for (const [hash, block] of Object.entries(pending.blocks)) {
-        const blockData = block as PendingBlock;
-        
-        // Create and publish a receive block
-        const receiveResult = await this.processReceive(address, privateKey, hash, blockData.amount);
-        
-        if (receiveResult.processed) {
-          processedCount++;
-          totalAmount += parseFloat(this.rawToXno(blockData.amount));
+      
+      // Count blocks and estimate total amount
+      const blocks = Object.keys(pendingInfo.blocks);
+      const totalPendingAmount = Object.values(pendingInfo.blocks)
+        .reduce((sum: number, block: any) => {
+          const amount = block.amount || '0';
+          return sum + parseFloat(this.rawToXno(amount));
+        }, 0);
+      
+      console.log(`Wallet has ${blocks.length} pending blocks totaling ${totalPendingAmount} XNO`);
+      
+      // Import nanoTransactions for client-side processing
+      const { nanoTransactions } = await import('./nanoTransactions');
+      
+      // Get debug information about the account
+      const accountInfo = await this.getAccountInfo(address);
+      
+      // Use the client-side transaction method
+      const result = await nanoTransactions.receiveAllPending(address, privateKey);
+      
+      // Return total received
+      return {
+        received: result.received,
+        count: result.count,
+        totalAmount: parseFloat(nacurrency.tools.convert(result.totalAmount, 'raw', 'NANO')),
+        debug: {
+          walletAddress: address,
+          privateKeyProvided: !!privateKey,
+          privateKeyFirstChars: privateKey ? privateKey.substring(0, 6) + '...' : 'none',
+          accountInfo,
+          pendingBlocks: blocks
         }
-      }
-
-      return { 
-        received: processedCount > 0, 
-        count: processedCount,
-        totalAmount
       };
     } catch (error) {
-      console.error('Failed to receive pending transactions:', error);
-      return { received: false, count: 0, totalAmount: 0 };
+      console.error('Error in receivePending:', error);
+      return { 
+        received: false, 
+        count: 0, 
+        totalAmount: 0,
+        debug: {
+          error: error instanceof Error ? error.message : String(error)
+        }
+      };
     }
   }
 
