@@ -465,8 +465,12 @@ class WalletService {
     if (!raw || raw === '0') return '0';
     
     try {
-      // Use the nanocurrency-web library for accurate conversion
-      const xnoValue = nacurrency.tools.convert(raw, { from: 'raw', to: 'NANO' });
+      // Make sure we're working with a string
+      const rawStr = raw.toString();
+      
+      // Use the nanocurrency-web library for accurate conversion with the correct method signature
+      // According to the library docs, it should be: convert(amount, fromUnit, toUnit)
+      const xnoValue = nacurrency.tools.convert(rawStr, 'RAW', 'NANO');
       
       // Format to 6 decimal places for display
       return parseFloat(xnoValue).toFixed(6);
@@ -496,8 +500,12 @@ class WalletService {
     if (!xno || xno === '0') return '0';
     
     try {
-      // Use the nanocurrency-web library for accurate conversion
-      const rawValue = nacurrency.tools.convert(xno, { from: 'NANO', to: 'raw' });
+      // Make sure we're working with a string
+      const xnoStr = xno.toString();
+      
+      // Use the nanocurrency-web library for accurate conversion with the correct method signature
+      // According to the library docs, it should be: convert(amount, fromUnit, toUnit)
+      const rawValue = nacurrency.tools.convert(xnoStr, 'NANO', 'RAW');
       
       return rawValue;
     } catch (error) {
