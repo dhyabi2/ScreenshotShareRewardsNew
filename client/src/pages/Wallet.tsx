@@ -220,6 +220,30 @@ export default function Wallet() {
   const generateWalletMutation = useMutation({
     mutationFn: () => api.generateWallet(),
     onSuccess: (data) => {
+      // Check if we actually got valid data before saving
+      if (!data.address || !data.privateKey) {
+        toast({
+          title: "Wallet Generation Error",
+          description: "Generated wallet data is missing address or private key",
+          variant: "destructive",
+        });
+        return;
+      }
+      
+      console.log(`Generated new wallet: ${data.address}`);
+      console.log(`Private key length: ${data.privateKey.length}`);
+      
+      // Verify private key format (should be 64 characters hex string)
+      const isValidPrivateKey = /^[0-9a-f]{64}$/i.test(data.privateKey);
+      if (!isValidPrivateKey) {
+        toast({
+          title: "Invalid Private Key Format",
+          description: "The generated private key has an invalid format",
+          variant: "destructive",
+        });
+        return;
+      }
+      
       // Save wallet address and private key to localStorage directly
       localStorage.setItem('xno_wallet_address', data.address);
       localStorage.setItem('xno_private_key', data.privateKey);
@@ -320,6 +344,7 @@ export default function Wallet() {
   
   // Effect to auto-receive pending transactions when we have a wallet and private key
   useEffect(() => {
+    // Check if we have a valid wallet with private key and pending transactions
     if (walletAddress && privateKey && walletInfo?.pending?.blocks?.length > 0) {
       // Auto-receive pending transactions
       console.log("Auto-receiving pending transactions...");
@@ -329,6 +354,30 @@ export default function Wallet() {
       });
     }
   }, [walletInfo?.pending?.blocks, walletAddress, privateKey]);
+  
+  // Effect to explicitly receive pending transactions after generating a new wallet
+  useEffect(() => {
+    if (generateWalletMutation.isSuccess && walletAddress && privateKey) {
+      // Add a small delay to ensure the wallet info has been fetched
+      const timer = setTimeout(() => {
+        console.log("New wallet generated - checking for pending transactions...");
+        // Force a wallet info refresh
+        refetchWalletInfo().then(result => {
+          if (result.data?.pending?.blocks?.length > 0) {
+            console.log(`Found ${result.data.pending.blocks.length} pending transactions for new wallet - receiving...`);
+            receivePendingMutation.mutate({
+              address: walletAddress,
+              privateKey
+            });
+          } else {
+            console.log("No pending transactions for new wallet");
+          }
+        });
+      }, 2000); // 2 second delay to ensure blockchain has time to register
+      
+      return () => clearTimeout(timer);
+    }
+  }, [generateWalletMutation.isSuccess, walletAddress, privateKey]);
   
   // Copy text to clipboard
   const copyToClipboard = (text: string, message = "Copied to clipboard") => {
@@ -406,14 +455,44 @@ export default function Wallet() {
                 <p className="text-sm text-green-600">
                   Your wallet is ready to use. Private key has been securely saved in your browser's local storage.
                 </p>
-                <div className="flex items-center mt-2">
+                <div className="flex flex-wrap gap-2 mt-2">
                   <Button
                     size="sm"
                     variant="outline"
-                    className="ml-2"
                     onClick={() => copyToClipboard(privateKey, "Private key copied to clipboard")}
                   >
                     <Copy size={16} className="mr-2" /> Copy Private Key
+                  </Button>
+                  
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="text-blue-600 border-blue-600"
+                    onClick={() => {
+                      const newKey = prompt("Enter your private key (64 character hex string):", privateKey);
+                      if (newKey) {
+                        // Verify key format
+                        const isValidFormat = /^[0-9a-f]{64}$/i.test(newKey);
+                        if (!isValidFormat) {
+                          toast({
+                            title: "Invalid Key Format",
+                            description: "Private key must be a 64 character hex string",
+                            variant: "destructive"
+                          });
+                          return;
+                        }
+                        
+                        // Update state and localStorage
+                        setPrivateKey(newKey);
+                        localStorage.setItem('xno_private_key', newKey);
+                        toast({
+                          title: "Private Key Updated",
+                          description: "Your private key has been updated successfully"
+                        });
+                      }
+                    }}
+                  >
+                    Update Private Key
                   </Button>
                 </div>
               </div>
@@ -499,16 +578,65 @@ export default function Wallet() {
                           <span className="text-sm text-amber-700 mt-1">
                             {walletInfo.pending.blocks.length} pending transaction(s)
                           </span>
-                          <Button 
-                            variant="outline"
-                            size="sm" 
-                            className="mt-2 self-start text-amber-700 border-amber-700"
-                            onClick={handleReceivePending}
-                            disabled={!privateKey || receivePendingMutation.isPending}
-                          >
-                            {receivePendingMutation.isPending && <Loader2 className="mr-2 h-3 w-3 animate-spin" />}
-                            Receive Funds
-                          </Button>
+                          <div className="flex gap-2 mt-2">
+                            <Button 
+                              variant="outline"
+                              size="sm" 
+                              className="self-start text-amber-700 border-amber-700"
+                              onClick={handleReceivePending}
+                              disabled={!privateKey || receivePendingMutation.isPending}
+                            >
+                              {receivePendingMutation.isPending && <Loader2 className="mr-2 h-3 w-3 animate-spin" />}
+                              Receive Funds
+                            </Button>
+                            <Button 
+                              variant="default"
+                              size="sm" 
+                              className="self-start bg-amber-600 hover:bg-amber-700"
+                              onClick={() => {
+                                // First check if we need to receive the funds with advanced options
+                                api.getAccountInfo(walletAddress).then(info => {
+                                  const isNewAccount = info?.error === 'Account not found';
+                                  console.log(`Account status: ${isNewAccount ? 'NEW' : 'EXISTING'}`);
+                                  
+                                  // Use advanced options for new accounts
+                                  api.receivePendingWithOptions(
+                                    walletAddress, 
+                                    privateKey, 
+                                    { 
+                                      workThreshold: isNewAccount ? 'ff00000000000000' : 'ffff000000000000',
+                                      maxRetries: 5,
+                                      debug: true
+                                    }
+                                  ).then(result => {
+                                    if (result.received) {
+                                      toast({
+                                        title: "Funds Received Successfully",
+                                        description: `Received ${result.count} transactions using advanced method`,
+                                      });
+                                    } else {
+                                      toast({
+                                        title: "Receive Failed",
+                                        description: `Could not receive funds with advanced method`,
+                                        variant: "destructive"
+                                      });
+                                    }
+                                    refetchWalletInfo();
+                                    refetchTxHistory();
+                                  }).catch(err => {
+                                    toast({
+                                      title: "Advanced Receive Failed",
+                                      description: err.message,
+                                      variant: "destructive"
+                                    });
+                                  });
+                                });
+                              }}
+                              disabled={!privateKey || receivePendingMutation.isPending}
+                            >
+                              Try Advanced Receive
+                            </Button>
+                          </div>
                         </div>
                       )}
                       

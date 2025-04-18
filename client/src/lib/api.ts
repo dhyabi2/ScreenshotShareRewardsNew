@@ -138,6 +138,32 @@ export const api = {
     return res.json();
   },
   
+  getAccountInfo: async (address: string): Promise<any> => {
+    const res = await apiRequest("POST", "/api/wallet/account-details", { address });
+    return res.json();
+  },
+  
+  receivePendingWithOptions: async (address: string, privateKey: string, options: any): Promise<{
+    received: boolean;
+    count: number;
+    totalAmount: number;
+    processedBlocks?: Array<{
+      blockHash: string;
+      amount: string;
+      success: boolean;
+      error?: string;
+    }>;
+  }> => {
+    const res = await apiRequest("POST", "/api/wallet/receive-with-options", { 
+      address, 
+      privateKey,
+      workThreshold: options.workThreshold,
+      maxRetries: options.maxRetries,
+      debug: options.debug
+    });
+    return res.json();
+  },
+  
   getDepositQrCode: async (address: string, amount?: number): Promise<{
     qrCodeUrl: string;
   }> => {
