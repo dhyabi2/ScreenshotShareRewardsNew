@@ -392,7 +392,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Advanced receive endpoint with additional options
   app.post('/api/wallet/receive-with-options', async (req, res) => {
     try {
-      const { address, privateKey, workThreshold, retryCount, debug } = req.body;
+      const { address, privateKey, workThreshold, maxRetries, debug } = req.body;
       
       if (!address) {
         return res.status(400).json({ error: 'Wallet address is required' });
@@ -423,7 +423,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           privateKey, 
           {
             workThreshold: workThreshold || 'ff00000000000000',
-            maxRetries: retryCount || 3
+            maxRetries: maxRetries || 3
           }
         );
         
@@ -463,7 +463,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               pendingBlocks: walletInfo.pending?.blocks || [],
               customSettings: {
                 workThreshold: workThreshold || 'ff00000000000000',
-                maxRetries: retryCount || 3
+                maxRetries: maxRetries || 3
               }
             }
           });
@@ -526,13 +526,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  // Get pending transactions with details
+  // Get pending transactions with details (POST)
   app.post('/api/wallet/pending', async (req, res) => {
     try {
       const { address, includeDetails } = req.body;
       
       if (!address) {
         return res.status(400).json({ error: 'Wallet address is required' });
+      }
+      
+      if (!walletService.isValidAddress(address)) {
+        return res.status(400).json({ error: 'Invalid wallet address format' });
+      }
+      
+      // Get pending transactions for this wallet
+      const pendingDetails = await walletService.getPendingTransactions(address, includeDetails);
+      
+      return res.json(pendingDetails);
+    } catch (error: any) {
+      console.error('Error getting pending transactions:', error);
+      return res.status(500).json({ error: error.message });
+    }
+  });
+  
+  // Get pending transactions with details (GET)
+  app.get('/api/wallet/pending-transactions', async (req, res) => {
+    try {
+      const address = req.query.address as string;
+      const includeDetails = req.query.include_details === 'true';
+      
+      if (!address) {
+        return res.status(400).json({ error: 'Wallet address is required (query parameter)' });
       }
       
       if (!walletService.isValidAddress(address)) {
