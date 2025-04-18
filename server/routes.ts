@@ -313,9 +313,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const walletInfo = await walletService.getWalletInfo(address);
       console.log(`Wallet has ${walletInfo.pending?.blocks?.length || 0} pending blocks totaling ${walletInfo.pending?.totalAmount || 0} XNO`);
       
+      if (!walletInfo.pending || walletInfo.pending.blocks.length === 0) {
+        return res.json({ received: false, count: 0, totalAmount: 0, message: 'No pending transactions to receive' });
+      }
+      
       try {
-        // Process the pending blocks
-        const result = await walletService.receivePending(address, privateKey);
+        // Check if account exists or is new (this affects how we receive funds)
+        const accountInfo = await walletService.getAccountInfo(address);
+        const isNewAccount = !accountInfo || accountInfo.error === 'Account not found' || !accountInfo.frontier;
+        
+        console.log(`Account status: ${isNewAccount ? 'NEW (needs open block)' : 'EXISTING'}`);
+        
+        // Use the advanced method with options for better handling of new accounts
+        // This method properly handles the difference between opening blocks and receive blocks
+        const result = await walletService.receivePendingWithOptions(
+          address, 
+          privateKey, 
+          {
+            // Use lower work threshold for opening blocks if needed
+            workThreshold: isNewAccount ? 'ff00000000000000' : 'ffff000000000000',
+            maxRetries: 3
+          }
+        );
         
         console.log(`Receive result: ${JSON.stringify(result)}`);
         
@@ -344,11 +363,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
           
           // Return additional debug information
           res.json({
-            ...result,
+            received: result.received,
+            count: result.count,
+            totalAmount: result.totalAmount,
+            processedBlocks: result.processedBlocks,
             debug: {
               walletAddress: address,
               privateKeyProvided: !!privateKey,
               privateKeyFirstChars: privateKey ? privateKey.substring(0, 6) + '...' : 'none',
+              isNewAccount,
               accountInfo: debugInfo,
               pendingBlocks: walletInfo.pending?.blocks || []
             }
