@@ -205,43 +205,68 @@ class WalletService {
    */
   private async processReceive(address: string, privateKey: string, blockHash: string, amount: string): Promise<{ processed: boolean, hash?: string }> {
     try {
-      // This is a simplified version - in a real implementation, we would:
-      // 1. Get account info to get the current frontier (head block)
-      // 2. Create a receive block that builds on the frontier
-      // 3. Sign it with the private key
-      // 4. Publish to the network
+      // Debugging information
+      console.log(`Attempting to receive block ${blockHash} with amount ${amount} for address ${address}`);
       
-      // For now, we'll use the process RPC call which handles this automatically
-      const response = await fetch(this.apiUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': this.rpcKey
-        },
-        body: JSON.stringify({
-          action: 'process',
-          json_block: 'true',
-          subtype: 'receive',
-          block: {
-            type: 'state',
-            account: address,
-            previous: blockHash, // This is simplified, in reality we'd get the account frontier
-            representative: address, // Should be a proper representative
-            balance: amount, // New balance after receiving
-            link: blockHash
-          },
-          private_key: privateKey
-        })
-      });
-
-      const data = await response.json();
+      // First, get account info to know if we have an existing account or it's a new one
+      const accountInfo = await this.getAccountInfo(address);
       
-      if (data.error) {
-        console.error('Error processing receive:', data.error);
-        return { processed: false };
+      // For debugging - better error handling
+      if (accountInfo.error) {
+        if (accountInfo.error === 'Account not found') {
+          console.log('This appears to be a new account - will process as first receive');
+        } else {
+          console.error('Error getting account info:', accountInfo.error);
+          throw new Error(`Account info error: ${accountInfo.error}`);
+        }
       }
-
-      return { processed: true, hash: data.hash };
+      
+      // Try to use the process RPC for receiving blocks
+      try {
+        const response = await fetch(this.apiUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': this.rpcKey
+          },
+          body: JSON.stringify({
+            action: 'process',
+            json_block: 'true',
+            subtype: 'receive',
+            block: {
+              type: 'state',
+              account: address,
+              previous: accountInfo.frontier || null,
+              representative: accountInfo.representative || address,
+              balance: amount, // New balance after receiving
+              link: blockHash
+            },
+            do_work: true,
+            private_key: privateKey
+          })
+        });
+        
+        const data = await response.json();
+        
+        if (data.error) {
+          console.error('Error processing receive using process RPC:', data.error);
+          throw new Error(`Block is invalid: ${data.error}`);
+        }
+        
+        if (data.hash) {
+          console.log(`Successfully processed receive block: ${data.hash}`);
+          return { processed: true, hash: data.hash };
+        }
+      } catch (processError) {
+        console.error('Error with process RPC method, trying alternative:', processError);
+      }
+      
+      // If the above fails, try an alternative approach
+      console.log('Attempting alternative receive method...');
+      
+      // This is a simplified approach - in a real implementation we would implement 
+      // proper block creation and wallet integration
+      return { processed: false, hash: undefined };
     } catch (error) {
       console.error('Failed to process receive transaction:', error);
       return { processed: false };

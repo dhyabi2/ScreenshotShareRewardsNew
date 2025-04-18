@@ -48,7 +48,7 @@ export default function Wallet() {
     }
   }, [walletAddress]);
   
-  // Wallet info query
+  // Wallet info query with more frequent refresh
   const { 
     data: walletInfo, 
     isLoading: walletInfoLoading,
@@ -63,10 +63,10 @@ export default function Wallet() {
       return api.getWalletInfo(walletAddress);
     },
     enabled: !!walletAddress,
-    refetchInterval: 60000, // Refetch every minute
+    refetchInterval: 15000, // Refetch every 15 seconds for more responsiveness
   });
   
-  // Transaction history query
+  // Transaction history query - with auto refresh
   const { 
     data: txHistory, 
     isLoading: txHistoryLoading,
@@ -81,6 +81,7 @@ export default function Wallet() {
     },
     enabled: !!walletAddress && validWallet,
     select: (data) => data.transactions,
+    refetchInterval: 15000, // Refresh every 15 seconds
   });
   
   // Upload stats query
@@ -290,6 +291,18 @@ export default function Wallet() {
       refetchTxHistory();
     }
   }, [walletAddress]);
+  
+  // Effect to auto-receive pending transactions when we have a wallet and private key
+  useEffect(() => {
+    if (walletAddress && privateKey && walletInfo?.pending?.blocks?.length > 0) {
+      // Auto-receive pending transactions
+      console.log("Auto-receiving pending transactions...");
+      receivePendingMutation.mutate({
+        address: walletAddress,
+        privateKey
+      });
+    }
+  }, [walletInfo?.pending?.blocks, walletAddress, privateKey]);
   
   // Copy text to clipboard
   const copyToClipboard = (text: string, message = "Copied to clipboard") => {
