@@ -33,6 +33,19 @@ interface ReceiveOptions {
   maxRetries?: number;
 }
 
+interface ProcessedBlock {
+  blockHash: string;
+  amount: string;
+  success: boolean;
+  resultHash?: string;
+  error?: string;
+}
+
+interface ReceiveOptions {
+  workThreshold?: string;
+  maxRetries?: number;
+}
+
 class WalletService {
   // Make these public but readonly so they can be accessed by the routes
   public readonly apiUrl: string;
