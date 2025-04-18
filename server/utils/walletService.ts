@@ -28,6 +28,11 @@ interface PendingBlock {
   source: string;
 }
 
+interface ReceiveOptions {
+  workThreshold?: string;
+  maxRetries?: number;
+}
+
 class WalletService {
   // Make these public but readonly so they can be accessed by the routes
   public readonly apiUrl: string;
@@ -45,6 +50,13 @@ class WalletService {
       console.log('Successfully loaded XNO API credentials for blockchain integration');
       console.log('GPU-KEY authentication enabled for work_generate requests');
     }
+  }
+  
+  /**
+   * Utility function to check if an address is valid
+   */
+  isValidAddress(address: string): boolean {
+    return isValidXNOAddress(address);
   }
 
   /**

@@ -389,6 +389,166 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
+  // Advanced receive endpoint with additional options
+  app.post('/api/wallet/receive-with-options', async (req, res) => {
+    try {
+      const { address, privateKey, workThreshold, retryCount, debug } = req.body;
+      
+      if (!address) {
+        return res.status(400).json({ error: 'Wallet address is required' });
+      }
+      
+      if (!walletService.isValidAddress(address)) {
+        return res.status(400).json({ error: 'Invalid wallet address format' });
+      }
+      
+      console.log(`Attempting to receive with custom options for wallet: ${address}`);
+      
+      // First get wallet info to see if there's anything to receive
+      const walletInfo = await walletService.getWalletInfo(address);
+      console.log(`Wallet has ${walletInfo.pending?.blocks?.length || 0} pending blocks totaling ${walletInfo.pending?.totalAmount || 0} XNO`);
+      
+      if (!walletInfo.pending?.blocks?.length) {
+        return res.json({ received: false, count: 0, totalAmount: 0 });
+      }
+      
+      if (!privateKey) {
+        return res.status(400).json({ error: 'Private key is required to receive funds' });
+      }
+      
+      try {
+        // Process the pending blocks with custom options
+        const result = await walletService.receivePendingWithOptions(
+          address, 
+          privateKey, 
+          {
+            workThreshold: workThreshold || 'ff00000000000000',
+            maxRetries: retryCount || 3
+          }
+        );
+        
+        console.log(`Receive with options result: ${JSON.stringify(result)}`);
+        
+        if (debug) {
+          // Get additional debug information about the wallet
+          let debugInfo;
+          try {
+            const accountInfoResponse = await fetch(walletService.apiUrl, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': walletService.rpcKey
+              },
+              body: JSON.stringify({
+                action: 'account_info',
+                account: address,
+                representative: true,
+                pending: true
+              })
+            });
+            
+            debugInfo = await accountInfoResponse.json();
+          } catch (debugError) {
+            debugInfo = { error: "Could not fetch debug info" };
+          }
+          
+          // Return additional debug information
+          res.json({
+            ...result,
+            debug: {
+              walletAddress: address,
+              privateKeyProvided: !!privateKey,
+              privateKeyFirstChars: privateKey ? privateKey.substring(0, 6) + '...' : 'none',
+              accountInfo: debugInfo,
+              pendingBlocks: walletInfo.pending?.blocks || [],
+              customSettings: {
+                workThreshold: workThreshold || 'ff00000000000000',
+                maxRetries: retryCount || 3
+              }
+            }
+          });
+        } else {
+          res.json(result);
+        }
+      } catch (processError) {
+        console.error('Error processing pending blocks with custom options:', processError);
+        
+        if (debug) {
+          // Return error details in debug mode
+          res.status(500).json({
+            received: false,
+            count: 0,
+            totalAmount: 0,
+            error: processError.message,
+            debug: {
+              errorDetails: processError.toString(),
+              walletAddress: address,
+              privateKeyProvided: !!privateKey,
+              privateKeyFirstChars: privateKey ? privateKey.substring(0, 6) + '...' : 'none',
+              pendingBlocks: walletInfo.pending?.blocks || []
+            }
+          });
+        } else {
+          res.status(500).json({ 
+            received: false, 
+            count: 0, 
+            totalAmount: 0,
+            error: processError.message 
+          });
+        }
+      }
+    } catch (error: any) {
+      console.error('Error in receive pending with options route:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+  
+  // Get detailed account information
+  app.post('/api/wallet/account-details', async (req, res) => {
+    try {
+      const { address } = req.body;
+      
+      if (!address) {
+        return res.status(400).json({ error: 'Wallet address is required' });
+      }
+      
+      if (!walletService.isValidAddress(address)) {
+        return res.status(400).json({ error: 'Invalid wallet address format' });
+      }
+      
+      // Get account information directly from RPC
+      const accountInfo = await walletService.getAccountDetails(address);
+      
+      return res.json(accountInfo);
+    } catch (error: any) {
+      console.error('Error getting account details:', error);
+      return res.status(500).json({ error: error.message });
+    }
+  });
+  
+  // Get pending transactions with details
+  app.post('/api/wallet/pending', async (req, res) => {
+    try {
+      const { address, includeDetails } = req.body;
+      
+      if (!address) {
+        return res.status(400).json({ error: 'Wallet address is required' });
+      }
+      
+      if (!walletService.isValidAddress(address)) {
+        return res.status(400).json({ error: 'Invalid wallet address format' });
+      }
+      
+      // Get pending transactions for this wallet
+      const pendingDetails = await walletService.getPendingTransactions(address, includeDetails);
+      
+      return res.json(pendingDetails);
+    } catch (error: any) {
+      console.error('Error getting pending transactions:', error);
+      return res.status(500).json({ error: error.message });
+    }
+  });
+  
   app.post('/api/wallet/send', async (req, res) => {
     try {
       const { fromAddress, privateKey, toAddress, amount } = req.body;
