@@ -215,21 +215,38 @@ class WalletService {
       
       // First, get account info to know if we have an existing account or it's a new one
       const accountInfo = await this.getAccountInfo(address);
+      const isNewAccount = !accountInfo || accountInfo.error === 'Account not found' || !accountInfo.frontier;
       
       // For debugging - better error handling
-      if (accountInfo.error) {
-        if (accountInfo.error === 'Account not found') {
-          console.log('This appears to be a new account - will process as first receive');
-        } else {
-          console.error('Error getting account info:', accountInfo.error);
-          throw new Error(`Account info error: ${accountInfo.error}`);
-        }
+      if (isNewAccount) {
+        console.log('This appears to be a new account - will process as first receive (opening account)');
+      } else if (accountInfo.error && accountInfo.error !== 'Account not found') {
+        console.error('Error getting account info:', accountInfo.error);
+        throw new Error(`Account info error: ${accountInfo.error}`);
+      }
+      
+      // Calculate the new balance (for existing accounts, add to current balance)
+      let newBalance = amount; // For new accounts, the balance is simply the received amount
+      if (!isNewAccount && accountInfo.balance) {
+        // For existing accounts, add the received amount to the current balance
+        const currentBalanceBigInt = BigInt(accountInfo.balance);
+        const receivingAmountBigInt = BigInt(amount);
+        newBalance = (currentBalanceBigInt + receivingAmountBigInt).toString();
+        console.log(`Adding ${amount} raw to existing balance of ${accountInfo.balance} raw = ${newBalance} raw`);
       }
       
       // Try to use the process RPC for receiving blocks
       try {
         // Log that we're generating work for this block
         console.log(`Generating work for receive block with GPU-KEY authentication...`);
+        console.log(`New account: ${isNewAccount}, Previous: ${accountInfo?.frontier || 'null'}, Balance: ${newBalance} raw`);
+        
+        // Create the proper representative value
+        const representative = accountInfo?.representative || address;
+        
+        // For new accounts (opening blocks), we need to use a well-known representative
+        // This increases the chance of the block being properly processed
+        const defaultRepresentative = 'nano_3rropjiqfxpmrrkooej4qtmm1pueu36f9ghinpho4esfdor8785a455d16nf';
         
         const response = await fetch(this.apiUrl, {
           method: 'POST',
@@ -245,12 +262,15 @@ class WalletService {
             block: {
               type: 'state',
               account: address,
-              previous: accountInfo.frontier || null,
-              representative: accountInfo.representative || address,
-              balance: amount, // New balance after receiving
+              previous: isNewAccount ? null : accountInfo.frontier,
+              representative: isNewAccount ? defaultRepresentative : representative,
+              balance: newBalance, // The updated balance after receiving
               link: blockHash
             },
             do_work: true,
+            work_peers: [
+              ["rpc.nano.to", "443"]  // Provides the work peers to generate work
+            ],
             private_key: privateKey
           })
         });
@@ -259,6 +279,12 @@ class WalletService {
         
         if (data.error) {
           console.error('Error processing receive using process RPC:', data.error);
+          
+          // Additional debug info
+          if (data.error.includes('Unreceivable') || data.error.includes('Gap source block')) {
+            console.log('This block may have already been received or there is a gap in the blockchain');
+          }
+          
           throw new Error(`Block is invalid: ${data.error}`);
         }
         
@@ -270,11 +296,38 @@ class WalletService {
         console.error('Error with process RPC method, trying alternative:', processError);
       }
       
-      // If the above fails, try an alternative approach
+      // If the above fails, try an alternative approach using receive RPC call
       console.log('Attempting alternative receive method...');
       
-      // This is a simplified approach - in a real implementation we would implement 
-      // proper block creation and wallet integration
+      try {
+        // Try using the receive RPC call which is sometimes more reliable for pending blocks
+        const response = await fetch(this.apiUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': this.rpcKey,
+            'X-GPU-Key': 'RPC-KEY-BAB822FCCDAE42ECB7A331CCAAAA23'
+          },
+          body: JSON.stringify({
+            action: 'receive',
+            wallet: address, // For simplicity, using address as wallet - in a real implementation we would use a proper wallet ID
+            account: address,
+            block: blockHash
+          })
+        });
+        
+        const data = await response.json();
+        
+        if (data.error) {
+          console.error('Error processing receive using receive RPC:', data.error);
+        } else if (data.block) {
+          console.log(`Successfully received block using alternative method: ${data.block}`);
+          return { processed: true, hash: data.block };
+        }
+      } catch (altError) {
+        console.error('Alternative receive method also failed:', altError);
+      }
+      
       return { processed: false, hash: undefined };
     } catch (error) {
       console.error('Failed to process receive transaction:', error);
