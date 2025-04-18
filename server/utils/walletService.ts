@@ -336,10 +336,84 @@ class WalletService {
               console.log('Trying alternative method...');
             }
             
-            // Method 2: Using block_create action
+            // Method 2: Using multiple process actions with different parameters
             try {
-              console.log('Trying block_create action...');
-              const response = await fetch(this.apiUrl, {
+              console.log('Trying process action with receive subtype...');
+              
+              // Try with explicit receive subtype
+              const receiveResponse = await fetch(this.apiUrl, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': this.rpcKey,
+                  'X-GPU-Key': 'RPC-KEY-BAB822FCCDAE42ECB7A331CCAAAA23'
+                },
+                body: JSON.stringify({
+                  action: 'process',
+                  json_block: 'true',
+                  subtype: 'receive',
+                  do_work: true,
+                  block: {
+                    type: 'state',
+                    account: address,
+                    previous: null, // Opening block has no previous
+                    representative: 'nano_3rropjiqfxpmrrkooej4qtmm1pueu36f9ghinpho4esfdor8785a455d16nf', // Default rep
+                    balance: amount,
+                    link: blockHash,
+                    work: work
+                  },
+                  private_key: privateKey
+                })
+              });
+              
+              const receiveData = await receiveResponse.json();
+              
+              if (!receiveData.error && receiveData.hash) {
+                console.log(`Successfully received block with receive subtype: ${receiveData.hash}`);
+                return { processed: true, hash: receiveData.hash };
+              }
+              
+              if (receiveData.error) {
+                console.log(`Process with receive subtype failed: ${receiveData.error}`);
+              }
+              
+              // Method 3: Try a simplified approach with minimal parameters
+              console.log('Trying simplified process action...');
+              
+              const simpleResponse = await fetch(this.apiUrl, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': this.rpcKey,
+                  'X-GPU-Key': 'RPC-KEY-BAB822FCCDAE42ECB7A331CCAAAA23'
+                },
+                body: JSON.stringify({
+                  action: 'process',
+                  block: {
+                    type: 'receive',
+                    source: blockHash,
+                    work: work,
+                    account: address
+                  },
+                  private_key: privateKey
+                })
+              });
+              
+              const simpleData = await simpleResponse.json();
+              
+              if (!simpleData.error && simpleData.hash) {
+                console.log(`Successfully processed with simple method: ${simpleData.hash}`);
+                return { processed: true, hash: simpleData.hash };
+              }
+              
+              if (simpleData.error) {
+                console.log(`Simple process method failed: ${simpleData.error}`);
+              }
+              
+              // Final attempt: Try to directly add an account to the wallet
+              console.log('Trying direct account import...');
+              
+              const direct1Response = await fetch(this.apiUrl, {
                 method: 'POST',
                 headers: {
                   'Content-Type': 'application/json',
@@ -348,23 +422,22 @@ class WalletService {
                 },
                 body: JSON.stringify({
                   action: 'block_create',
-                  type: 'state',
+                  json_block: true,
+                  type: 'open',
+                  key: privateKey,
                   account: address,
-                  previous: null, // Opening block has no previous
-                  representative: 'nano_3rropjiqfxpmrrkooej4qtmm1pueu36f9ghinpho4esfdor8785a455d16nf', // Default rep
-                  balance: amount,
-                  link: blockHash,
+                  source: blockHash,
                   work: work,
-                  key: privateKey
+                  representative: 'nano_3rropjiqfxpmrrkooej4qtmm1pueu36f9ghinpho4esfdor8785a455d16nf'
                 })
               });
               
-              const data = await response.json();
+              const direct1Data = await direct1Response.json();
               
-              if (!data.error && data.hash) {
-                // For block_create, we need to publish the block afterwards
-                console.log(`Block created, now publishing: ${data.hash}`);
+              if (!direct1Data.error && direct1Data.hash) {
+                console.log(`Successfully created direct import block: ${direct1Data.hash}`);
                 
+                // Publish the block
                 const publishResponse = await fetch(this.apiUrl, {
                   method: 'POST',
                   headers: {
@@ -374,17 +447,20 @@ class WalletService {
                   },
                   body: JSON.stringify({
                     action: 'process',
-                    json_block: 'false',
-                    block: data.block,
+                    block: direct1Data.block
                   })
                 });
                 
                 const publishData = await publishResponse.json();
                 
-                if (!publishData.error) {
-                  console.log(`Successfully published opening block with block_create action: ${data.hash}`);
-                  return { processed: true, hash: data.hash };
+                if (!publishData.error && publishData.hash) {
+                  console.log(`Successfully published direct import block: ${publishData.hash}`);
+                  return { processed: true, hash: publishData.hash };
                 }
+              }
+              
+              if (direct1Data.error) {
+                console.log(`Direct import failed: ${direct1Data.error}`);
               }
             } catch (blockCreateError) {
               console.error('Error with block_create action method:', blockCreateError);
