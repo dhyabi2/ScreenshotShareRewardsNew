@@ -67,8 +67,8 @@ class NanoTransactions {
           body: {
             action: 'work_generate',
             hash: hash,
-            // For opening blocks, use a lower difficulty
-            difficulty: isOpenBlock ? 'fffffff000000000' : 'fffffff800000000'
+            // For opening blocks, use a much lower difficulty
+            difficulty: isOpenBlock ? 'fffffff8000000000000000000000000' : 'fffffff800000000'
           }
         },
         {
@@ -97,7 +97,7 @@ class NanoTransactions {
             action: 'work_generate',
             hash: hash,
             // Set an even lower difficulty for fallback
-            difficulty: isOpenBlock ? 'ffff000000000000' : 'fffffe0000000000'
+            difficulty: isOpenBlock ? 'ff00000000000000' : 'fffffe0000000000'
           }
         },
         {
@@ -283,7 +283,7 @@ class NanoTransactions {
             json_block: 'true',
             subtype: subtype,
             force: 'true',
-            threshold: isOpeningBlock ? 'ffff000000000000' : 'fffffe0000000000',
+            threshold: isOpeningBlock ? 'ff00000000000000' : 'fffffe0000000000',
             block: block
           }
         }
