@@ -28,7 +28,7 @@ interface TransactionResult {
 }
 
 interface Pending {
-  blocks: { [key: string]: string };
+  blocks: { [key: string]: string | { amount: string } };
 }
 
 class NanoTransactions {
@@ -211,7 +211,7 @@ class NanoTransactions {
         account: address,
         previous: '0000000000000000000000000000000000000000000000000000000000000000',
         representative: representative,
-        balance: sourceAmount, // For first receive, balance becomes the received amount
+        balance: sourceAmount.toString(), // Ensure balance is a string
         link: sourceBlock,
         work: work
       };
@@ -375,7 +375,7 @@ class NanoTransactions {
       const work = await this.generateWork(accountInfo.frontier);
       
       // For send blocks, the link is the public key of the destination account
-      const destPublicKey = nanocurrency.derivePublicKeyFromAddress(toAddress);
+      const destPublicKey = nacurrency.tools.addressToPublicKey(toAddress);
       
       // Create a state block
       const block: BlockData = {
@@ -388,8 +388,17 @@ class NanoTransactions {
         work: work
       };
       
-      // Sign the block
-      const blockHash = nanocurrency.deriveBlockHash(block);
+      // Convert block to the format expected by nanocurrency.js
+      const blockForHash = {
+        account: block.account,
+        previous: block.previous,
+        representative: block.representative,
+        balance: block.balance,
+        link: block.link
+      };
+      
+      // Create the hash
+      const blockHash = nanocurrency.hashBlock(blockForHash);
       block.signature = nanocurrency.signBlock({
         hash: blockHash,
         secretKey: privateKey
@@ -453,13 +462,22 @@ class NanoTransactions {
       
       // Process each pending block
       for (const [blockHash, amount] of pendingBlocks) {
+        // Make sure amount is a string - handle different API response formats
+        let amountStr: string;
+        if (typeof amount === 'object' && amount !== null) {
+          // Some APIs return {amount: "value"} format
+          amountStr = amount.amount ? amount.amount.toString() : '0';
+        } else {
+          // Others return the value directly
+          amountStr = amount?.toString() || '0';
+        }
         console.log(`Processing block ${blockHash} with amount ${amount} for ${address}`);
         
         let result;
         
         if (isNewAccount && receivedCount === 0) {
           // For new accounts, first block is an open block
-          result = await this.createOpenBlock(address, privateKey, blockHash, amount);
+          result = await this.createOpenBlock(address, privateKey, blockHash, amountStr);
         } else {
           // After the first receive, we need to get fresh account info for each subsequent receive
           const freshAccountInfo = await this.getAccountInfo(address);
@@ -469,12 +487,12 @@ class NanoTransactions {
             continue;
           }
           
-          result = await this.createReceiveBlock(address, privateKey, blockHash, amount, freshAccountInfo);
+          result = await this.createReceiveBlock(address, privateKey, blockHash, amountStr, freshAccountInfo);
         }
         
         if (result.success) {
           receivedCount++;
-          totalAmount = totalAmount + BigInt(amount);
+          totalAmount = totalAmount + BigInt(amountStr);
           console.log(`Successfully received block ${blockHash} with hash ${result.hash}`);
         } else {
           console.error(`Failed to receive block ${blockHash}: ${result.error}`);

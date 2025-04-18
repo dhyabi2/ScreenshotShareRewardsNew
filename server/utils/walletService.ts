@@ -209,7 +209,7 @@ class WalletService {
       return {
         received: result.received,
         count: result.count,
-        totalAmount: parseFloat(nacurrency.tools.convert(result.totalAmount, 'raw', 'NANO')),
+        totalAmount: result.received ? parseFloat(nacurrency.tools.convert(result.totalAmount, 'RAW', 'NANO')) : 0,
         debug: {
           walletAddress: address,
           privateKeyProvided: !!privateKey,
