@@ -51,51 +51,88 @@ class NanoTransactions {
    */
   async generateWork(hash: string): Promise<string> {
     try {
-      // Try first with the standard work_generate
-      const response = await fetch(this.apiUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': this.rpcKey,
-          'X-GPU-Key': this.gpuKey
+      // Try with multiple work generation services to ensure compatibility
+      const services = [
+        {
+          name: "Primary RPC",
+          url: this.apiUrl,
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': this.rpcKey,
+            'X-GPU-Key': this.gpuKey
+          },
+          body: {
+            action: 'work_generate',
+            hash: hash,
+            difficulty: 'fffffff800000000'
+          }
         },
-        body: JSON.stringify({
-          action: 'work_generate',
-          hash: hash,
-          difficulty: 'fffffff800000000' // Try standard difficulty first
-        })
-      });
-
-      const data = await response.json() as any;
+        {
+          name: "Fallback RPC (lower difficulty)",
+          url: this.apiUrl,
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': this.rpcKey,
+            'X-GPU-Key': this.gpuKey
+          },
+          body: {
+            action: 'work_generate',
+            hash: hash,
+            difficulty: 'fffffe0000000000' // Lower difficulty as fallback
+          }
+        },
+        {
+          name: "Public node",
+          url: 'https://proxy.nanos.cc/proxy/', 
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: {
+            action: 'work_generate',
+            hash: hash,
+            difficulty: 'fffffe0000000000' // Lower difficulty
+          }
+        },
+        {
+          name: "Alternative public node",
+          url: 'https://node.nanocrawler.cc/proxy',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: {
+            action: 'work_generate',
+            hash: hash
+          }
+        }
+      ];
       
-      // If successful, return the work
-      if (!data.error && data.work) {
-        return data.work;
+      // Try each service in order until one succeeds
+      let lastError = '';
+      for (const service of services) {
+        console.log(`Trying work generation with ${service.name}...`);
+        try {
+          const response = await fetch(service.url, {
+            method: 'POST',
+            headers: service.headers,
+            body: JSON.stringify(service.body)
+          });
+          
+          const data = await response.json() as any;
+          
+          if (!data.error && data.work) {
+            console.log(`Work generation successful with ${service.name}`);
+            return data.work;
+          }
+          
+          lastError = data.error || 'Unknown error';
+          console.log(`Work generation failed with ${service.name}: ${lastError}`);
+        } catch (err) {
+          console.log(`Error with ${service.name}: ${err}`);
+        }
       }
       
-      console.log("First work generation attempt failed, trying alternative method");
-      
-      // If that fails, try the public node with lower difficulty
-      const fallbackResponse = await fetch('https://proxy.nanos.cc/proxy/', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          action: 'work_generate',
-          hash: hash,
-          difficulty: 'fffffe0000000000', // Lower difficulty as fallback
-        })
-      });
-      
-      const fallbackData = await fallbackResponse.json() as any;
-      
-      if (fallbackData.error) {
-        console.error('Error with fallback work generation:', fallbackData.error);
-        throw new Error(`All work generation attempts failed`);
-      }
-      
-      return fallbackData.work;
+      // If we get here, all services failed
+      throw new Error(`All work generation attempts failed. Last error: ${lastError}`);
     } catch (error) {
       console.error('Failed to generate work:', error);
       throw error;
@@ -173,10 +210,12 @@ class NanoTransactions {
   }
 
   /**
-   * Process a block through the node
+   * Process a block through the node - tries multiple methods
    */
   async processBlock(block: BlockData): Promise<{ hash?: string; error?: string }> {
     try {
+      // First try the standard process method
+      console.log('Attempting to process block with standard method...');
       const response = await fetch(this.apiUrl, {
         method: 'POST',
         headers: {
@@ -193,12 +232,60 @@ class NanoTransactions {
 
       const data = await response.json() as any;
       
-      if (data.error) {
-        console.error('Error processing block:', data.error);
-        return { error: data.error };
+      // If successful, return the hash
+      if (!data.error && data.hash) {
+        return { hash: data.hash };
       }
-
-      return { hash: data.hash };
+      
+      console.log(`Standard process method failed: ${data.error}, trying alternatives...`);
+      
+      // If that fails, try alternative method with precompute option
+      console.log('Trying alternative process method with precomputed work...');
+      const altResponseWithPrecompute = await fetch(this.apiUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': this.rpcKey,
+          'X-GPU-Key': this.gpuKey
+        },
+        body: JSON.stringify({
+          action: 'process',
+          json_block: 'true',
+          subtype: 'open', // specify subtype for clearer intent
+          do_work: false, // don't calculate work server-side
+          block: block
+        })
+      });
+      
+      const altDataWithPrecompute = await altResponseWithPrecompute.json() as any;
+      
+      if (!altDataWithPrecompute.error && altDataWithPrecompute.hash) {
+        return { hash: altDataWithPrecompute.hash };
+      }
+      
+      // If that still fails, try with a public node
+      console.log('Trying public node for block processing...');
+      const publicNodeResponse = await fetch('https://proxy.nanos.cc/proxy/', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          action: 'process',
+          json_block: 'true',
+          block: block
+        })
+      });
+      
+      const publicNodeData = await publicNodeResponse.json() as any;
+      
+      if (!publicNodeData.error && publicNodeData.hash) {
+        return { hash: publicNodeData.hash };
+      }
+      
+      // If all methods fail, return the error from the original attempt
+      console.error('All block processing methods failed');
+      return { error: data.error || 'Block processing failed' };
     } catch (error) {
       console.error('Failed to process block:', error);
       return { error: 'Block processing failed' };
@@ -398,7 +485,8 @@ class NanoTransactions {
       const work = await this.generateWork(accountInfo.frontier);
       
       // For send blocks, the link is the public key of the destination account
-      const destPublicKey = nanocurrency.derivePublicKey(toAddress);
+      // Extract public key directly - convert address to public key
+      const destPublicKey = Buffer.from(toAddress.replace('nano_', '').slice(0, 52), 'hex').toString('hex');
       
       // Create a state block
       const block: BlockData = {
