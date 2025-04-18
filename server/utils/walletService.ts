@@ -35,11 +35,14 @@ class WalletService {
 
   constructor() {
     this.apiUrl = process.env.XNO_API_URL || 'https://rpc.nano.to';
-    this.rpcKey = process.env.RPC_KEY || '';
+    this.rpcKey = process.env.RPC_KEY || 'RPC-KEY-BAB822FCCDAE42ECB7A331CCAAAA23';
     this.publicKey = process.env.PUBLIC_KEY || '';
     
     if (!this.rpcKey || !this.publicKey) {
       console.warn('Missing XNO API credentials. Wallet functionality will be limited.');
+    } else {
+      console.log('Successfully loaded XNO API credentials for blockchain integration');
+      console.log('GPU-KEY authentication enabled for work_generate requests');
     }
   }
 
@@ -99,7 +102,8 @@ class WalletService {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': this.rpcKey
+          'Authorization': this.rpcKey,
+          'X-GPU-Key': 'RPC-KEY-BAB822FCCDAE42ECB7A331CCAAAA23'
         },
         body: JSON.stringify({
           action: 'account_balance',
@@ -132,7 +136,8 @@ class WalletService {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': this.rpcKey
+          'Authorization': this.rpcKey,
+          'X-GPU-Key': 'RPC-KEY-BAB822FCCDAE42ECB7A331CCAAAA23'
         },
         body: JSON.stringify({
           action: 'pending',
@@ -223,11 +228,15 @@ class WalletService {
       
       // Try to use the process RPC for receiving blocks
       try {
+        // Log that we're generating work for this block
+        console.log(`Generating work for receive block with GPU-KEY authentication...`);
+        
         const response = await fetch(this.apiUrl, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': this.rpcKey
+            'Authorization': this.rpcKey,
+            'X-GPU-Key': 'RPC-KEY-BAB822FCCDAE42ECB7A331CCAAAA23' // GPU-KEY for work_generate
           },
           body: JSON.stringify({
             action: 'process',
@@ -301,11 +310,14 @@ class WalletService {
       }
 
       // Create and publish a send block
+      console.log(`Generating work for send block with GPU-KEY authentication...`);
+      
       const response = await fetch(this.apiUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': this.rpcKey
+          'Authorization': this.rpcKey,
+          'X-GPU-Key': 'RPC-KEY-BAB822FCCDAE42ECB7A331CCAAAA23' // GPU-KEY for work_generate
         },
         body: JSON.stringify({
           action: 'process',
@@ -319,6 +331,7 @@ class WalletService {
             balance: this.subtractRaw(accountInfo.balance, amountRaw), // New balance after sending
             link: toAddress // Destination address
           },
+          do_work: true, // Explicitly request work generation
           private_key: privateKey
         })
       });
@@ -346,7 +359,8 @@ class WalletService {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': this.rpcKey
+          'Authorization': this.rpcKey,
+          'X-GPU-Key': 'RPC-KEY-BAB822FCCDAE42ECB7A331CCAAAA23'
         },
         body: JSON.stringify({
           action: 'account_info',
@@ -378,7 +392,8 @@ class WalletService {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': this.rpcKey
+          'Authorization': this.rpcKey,
+          'X-GPU-Key': 'RPC-KEY-BAB822FCCDAE42ECB7A331CCAAAA23'
         },
         body: JSON.stringify({
           action: 'account_history',
@@ -452,7 +467,8 @@ class WalletService {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${this.rpcKey}`
+          'Authorization': this.rpcKey,
+          'X-GPU-Key': 'RPC-KEY-BAB822FCCDAE42ECB7A331CCAAAA23'
         },
         body: JSON.stringify({
           action: 'account_info',
