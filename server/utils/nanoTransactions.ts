@@ -466,7 +466,7 @@ class NanoTransactions {
         let amountStr: string;
         if (typeof amount === 'object' && amount !== null) {
           // Some APIs return {amount: "value"} format
-          amountStr = amount.amount ? amount.amount.toString() : '0';
+          amountStr = (amount as any).amount ? (amount as any).amount.toString() : '0';
         } else {
           // Others return the value directly
           amountStr = amount?.toString() || '0';
