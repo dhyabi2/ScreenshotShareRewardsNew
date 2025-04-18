@@ -29,11 +29,11 @@ export default function WalletManager({ walletAddress: initialWalletAddress, onW
   const { toast } = useToast();
   const queryClient = useQueryClient();
   
-  // Save wallet details in localStorage when available
+  // Always save wallet details in localStorage when available
   useEffect(() => {
     if (walletAddress && privateKey) {
       localStorage.setItem('xno_wallet_address', walletAddress);
-      // This is just for demo purposes - in production, never store private keys in localStorage!
+      // Always store private key in localStorage for seamless user experience
       localStorage.setItem('xno_private_key', privateKey);
     }
   }, [walletAddress, privateKey]);
