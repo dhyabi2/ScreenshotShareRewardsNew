@@ -48,9 +48,12 @@ class NanoTransactions {
 
   /**
    * Generate work for a block hash - tries multiple methods
+   * @param hash - The hash to generate work for
+   * @param isOpenBlock - Set to true for special handling of opening blocks which have different work requirements
    */
-  async generateWork(hash: string): Promise<string> {
+  async generateWork(hash: string, isOpenBlock = false): Promise<string> {
     try {
+      // Opening blocks have different difficulty requirements in some node versions
       // Try with multiple work generation services to ensure compatibility
       const services = [
         {
@@ -64,12 +67,12 @@ class NanoTransactions {
           body: {
             action: 'work_generate',
             hash: hash,
-            // New Nano V22 protocol uses higher difficulty
-            difficulty: 'fffffff800000000'
+            // For opening blocks, use a lower difficulty
+            difficulty: isOpenBlock ? 'fffffff000000000' : 'fffffff800000000'
           }
         },
         {
-          name: "Fallback RPC with canonical difficulty",
+          name: "Fallback RPC with default difficulty",
           url: this.apiUrl,
           headers: {
             'Content-Type': 'application/json',
@@ -93,7 +96,8 @@ class NanoTransactions {
           body: {
             action: 'work_generate',
             hash: hash,
-            difficulty: 'fffffe0000000000' // Lower difficulty as fallback
+            // Set an even lower difficulty for fallback
+            difficulty: isOpenBlock ? 'ffff000000000000' : 'fffffe0000000000'
           }
         },
         {
@@ -226,102 +230,156 @@ class NanoTransactions {
 
   /**
    * Process a block through the node - tries multiple methods
+   * @param block - The block to process
+   * @param isOpeningBlock - Set to true for opening blocks (affects work threshold)
    */
-  async processBlock(block: BlockData): Promise<{ hash?: string; error?: string }> {
+  async processBlock(block: BlockData, isOpeningBlock = false): Promise<{ hash?: string; error?: string }> {
     try {
-      // First try the standard process method
-      console.log('Attempting to process block with standard method...');
-      const response = await fetch(this.apiUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': this.rpcKey,
-          'X-GPU-Key': this.gpuKey
-        },
-        body: JSON.stringify({
-          action: 'process',
-          json_block: 'true',
-          block: block
-        })
-      });
-
-      const data = await response.json() as any;
-      
-      // If successful, return the hash
-      if (!data.error && data.hash) {
-        return { hash: data.hash };
-      }
-      
-      console.log(`Standard process method failed: ${data.error}, trying alternatives...`);
-      
-      // If that fails, try alternative method with precompute option
       // Determine the subtype based on the block structure
       const subtype = block.previous === '0000000000000000000000000000000000000000000000000000000000000000' 
         ? 'open' // Opening block for new account
         : (block.link && block.link.length === 64) 
           ? 'receive' // Receive block
           : 'send'; // Send block
-          
-      console.log(`Trying alternative process method with precomputed work (subtype: ${subtype})...`);
-      const altResponseWithPrecompute = await fetch(this.apiUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': this.rpcKey,
-          'X-GPU-Key': this.gpuKey
-        },
-        body: JSON.stringify({
-          action: 'process',
-          json_block: 'true',
-          subtype: subtype, // specify the appropriate subtype
-          force: 'true', // Force processing even with lower work
-          do_work: false, // don't calculate work server-side
-          block: block
-        })
-      });
       
-      const altDataWithPrecompute = await altResponseWithPrecompute.json() as any;
-      
-      if (!altDataWithPrecompute.error && altDataWithPrecompute.hash) {
-        return { hash: altDataWithPrecompute.hash };
-      }
-      
-      // If that still fails, try with a public node
-      console.log('Trying public node for block processing...');
-      try {
-        const publicNodeResponse = await fetch('https://proxy.nanos.cc/proxy/', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
+      // Retry with progressively more permissive approaches
+      const attempts = [
+        // Attempt 1: Standard process with json_block
+        {
+          name: "Standard process",
+          body: {
             action: 'process',
             json_block: 'true',
             block: block
-          })
-        });
-        
-        // Check if the response is valid JSON
-        const text = await publicNodeResponse.text();
-        let publicNodeData;
-        try {
-          publicNodeData = JSON.parse(text);
-          
-          if (!publicNodeData.error && publicNodeData.hash) {
-            return { hash: publicNodeData.hash };
           }
-        } catch (jsonError) {
-          console.log('Failed to parse public node response:', text);
-          // Continue with other methods
+        },
+        // Attempt 2: With subtype specified
+        {
+          name: "Subtype process",
+          body: {
+            action: 'process',
+            json_block: 'true',
+            subtype: subtype,
+            block: block
+          }
+        },
+        // Attempt 3: With force flag
+        {
+          name: "Force process",
+          body: {
+            action: 'process',
+            json_block: 'true',
+            subtype: subtype,
+            force: 'true',
+            do_work: false,
+            block: block
+          }
+        },
+        // Attempt 4: With different work thresholds for different operations
+        {
+          name: "Adjusted work threshold process",
+          body: {
+            action: 'process',
+            json_block: 'true',
+            subtype: subtype,
+            force: 'true',
+            threshold: isOpeningBlock ? 'ffff000000000000' : 'fffffe0000000000',
+            block: block
+          }
         }
-      } catch (publicNodeError) {
-        console.log('Public node request failed:', publicNodeError);
-        // Continue with other methods
+      ];
+      
+      let lastError = '';
+      
+      // Try each method until one works
+      for (const attempt of attempts) {
+        console.log(`Attempting block processing with: ${attempt.name}...`);
+        
+        try {
+          const response = await fetch(this.apiUrl, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': this.rpcKey,
+              'X-GPU-Key': this.gpuKey
+            },
+            body: JSON.stringify(attempt.body)
+          });
+  
+          const data = await response.json() as any;
+          
+          // If successful, return the hash
+          if (!data.error && data.hash) {
+            console.log(`Success with ${attempt.name}`);
+            return { hash: data.hash };
+          }
+          
+          lastError = data.error || 'Unknown error';
+          console.log(`${attempt.name} failed: ${lastError}`);
+        } catch (err) {
+          console.error(`Error with ${attempt.name}:`, err);
+        }
       }
       
-      // If all methods fail, return the error from the original attempt
+      // If all primary methods fail, try with public nodes
+      const publicNodes = [
+        {
+          name: "Public node 1",
+          url: 'https://proxy.nanos.cc/proxy/',
+          body: {
+            action: 'process',
+            json_block: 'true',
+            subtype: subtype,
+            force: 'true',
+            block: block
+          }
+        },
+        {
+          name: "Public node 2",
+          url: 'https://node.nanocrawler.cc/proxy',
+          body: {
+            action: 'process',
+            json_block: 'true',
+            subtype: subtype,
+            block: block
+          }
+        }
+      ];
+      
+      // Try each public node
+      for (const publicNode of publicNodes) {
+        console.log(`Trying ${publicNode.name} for block processing...`);
+        try {
+          const publicNodeResponse = await fetch(publicNode.url, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(publicNode.body)
+          });
+          
+          // Check if the response is valid JSON
+          const text = await publicNodeResponse.text();
+          try {
+            const publicNodeData = JSON.parse(text);
+            
+            if (!publicNodeData.error && publicNodeData.hash) {
+              console.log(`Success with ${publicNode.name}`);
+              return { hash: publicNodeData.hash };
+            }
+            
+            console.log(`${publicNode.name} failed: ${publicNodeData.error || 'Unknown error'}`);
+          } catch (jsonError) {
+            console.log(`Failed to parse ${publicNode.name} response:`, text);
+          }
+        } catch (networkError) {
+          console.log(`${publicNode.name} request failed:`, networkError);
+        }
+      }
+      
+      // If all methods fail, return a generic error with the last error we encountered
       console.error('All block processing methods failed');
-      return { error: data.error || 'Block processing failed' };
+      return { error: lastError || 'Block processing failed' };
     } catch (error) {
       console.error('Failed to process block:', error);
       return { error: 'Block processing failed' };
@@ -349,7 +407,7 @@ class NanoTransactions {
       
       // Generate work for the public key (for opening blocks)
       console.log('Generating work for opening block...');
-      const work = await this.generateWork(publicKey);
+      const work = await this.generateWork(publicKey, true); // Pass true to indicate this is an opening block
       
       // Create a state block
       const block: BlockData = {
@@ -380,8 +438,8 @@ class NanoTransactions {
       
       console.log('Created and signed opening block with hash:', blockHash);
       
-      // Process the block
-      const processResult = await this.processBlock(block);
+      // Process the block - specify this is an opening block for appropriate work threshold
+      const processResult = await this.processBlock(block, true);
       
       if (processResult.error) {
         return { 
