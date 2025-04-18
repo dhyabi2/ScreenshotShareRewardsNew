@@ -6,7 +6,7 @@
 
 import { isValidXNOAddress } from '../helpers/validators';
 import * as nanocurrency from 'nanocurrency';
-import * as nacurrency from 'nanocurrency-web';
+import * as nanocurrencyWeb from 'nanocurrency-web';
 import fetch from 'node-fetch';
 
 interface BlockData {
@@ -64,7 +64,22 @@ class NanoTransactions {
           body: {
             action: 'work_generate',
             hash: hash,
+            // New Nano V22 protocol uses higher difficulty
             difficulty: 'fffffff800000000'
+          }
+        },
+        {
+          name: "Fallback RPC with canonical difficulty",
+          url: this.apiUrl,
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': this.rpcKey,
+            'X-GPU-Key': this.gpuKey
+          },
+          body: {
+            action: 'work_generate',
+            hash: hash,
+            use_peers: 'true'
           }
         },
         {
@@ -240,7 +255,14 @@ class NanoTransactions {
       console.log(`Standard process method failed: ${data.error}, trying alternatives...`);
       
       // If that fails, try alternative method with precompute option
-      console.log('Trying alternative process method with precomputed work...');
+      // Determine the subtype based on the block structure
+      const subtype = block.previous === '0000000000000000000000000000000000000000000000000000000000000000' 
+        ? 'open' // Opening block for new account
+        : (block.link && block.link.length === 64) 
+          ? 'receive' // Receive block
+          : 'send'; // Send block
+          
+      console.log(`Trying alternative process method with precomputed work (subtype: ${subtype})...`);
       const altResponseWithPrecompute = await fetch(this.apiUrl, {
         method: 'POST',
         headers: {
@@ -251,7 +273,8 @@ class NanoTransactions {
         body: JSON.stringify({
           action: 'process',
           json_block: 'true',
-          subtype: 'open', // specify subtype for clearer intent
+          subtype: subtype, // specify the appropriate subtype
+          force: 'true', // Force processing even with lower work
           do_work: false, // don't calculate work server-side
           block: block
         })
@@ -498,8 +521,8 @@ class NanoTransactions {
       const work = await this.generateWork(accountInfo.frontier);
       
       // For send blocks, the link is the public key of the destination account
-      // Extract public key directly - convert address to public key
-      const publicKey = Buffer.from(toAddress.replace('nano_', '').slice(0, 52), 'hex').toString('hex');
+      // Use nanocurrency-web library to properly convert address to public key
+      const publicKey = nanocurrencyWeb.tools.addressToPublicKey(toAddress);
       
       // Create a state block
       const block: BlockData = {
