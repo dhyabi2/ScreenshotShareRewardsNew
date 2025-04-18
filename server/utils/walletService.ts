@@ -29,8 +29,9 @@ interface PendingBlock {
 }
 
 class WalletService {
-  private apiUrl: string;
-  private rpcKey: string;
+  // Make these public but readonly so they can be accessed by the routes
+  public readonly apiUrl: string;
+  public readonly rpcKey: string;
   private publicKey: string;
 
   constructor() {
@@ -248,8 +249,20 @@ class WalletService {
             // For new accounts, we need to create a proper opening block
             console.log('Creating opening block for new account');
             
-            // Generate work for the public key of the account
-            const pubKey = address.startsWith('nano_') ? address.substring(5, 5 + 52) : address;
+            // For opening blocks, we need to use the account's public key as the hash for work generation
+            // Extract the public key from the address (removing the prefix and checksum)
+            let pubKey;
+            try {
+              // Use nanocurrency-web to get the public key from the address
+              pubKey = nacurrency.tools.addressToPublicKey(address);
+              console.log(`Derived public key for work: ${pubKey}`);
+            } catch (error) {
+              console.error('Error extracting public key from address:', error);
+              
+              // Fallback to manual extraction if the library fails
+              pubKey = address.startsWith('nano_') ? address.substring(5, 5 + 52) : address;
+              console.log(`Using fallback public key extraction: ${pubKey}`);
+            }
             
             // First get work pre-computed for the block
             const workResponse = await fetch(this.apiUrl, {
@@ -261,7 +274,8 @@ class WalletService {
               },
               body: JSON.stringify({
                 action: 'work_generate',
-                hash: pubKey // For opening blocks, we use the public key as hash
+                hash: pubKey, // For opening blocks, we use the public key as hash
+                difficulty: "fffffe0000000000" // Lower difficulty for opening blocks
               })
             });
             

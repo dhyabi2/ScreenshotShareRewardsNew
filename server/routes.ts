@@ -301,7 +301,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   app.post('/api/wallet/receive', async (req, res) => {
     try {
-      const { address, privateKey } = req.body;
+      const { address, privateKey, debug } = req.body;
       
       if (!address || !privateKey) {
         return res.status(400).json({ error: 'Wallet address and private key are required' });
@@ -313,12 +313,76 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const walletInfo = await walletService.getWalletInfo(address);
       console.log(`Wallet has ${walletInfo.pending?.blocks?.length || 0} pending blocks totaling ${walletInfo.pending?.totalAmount || 0} XNO`);
       
-      // Process the pending blocks
-      const result = await walletService.receivePending(address, privateKey);
-      
-      console.log(`Receive result: ${JSON.stringify(result)}`);
-      
-      res.json(result);
+      try {
+        // Process the pending blocks
+        const result = await walletService.receivePending(address, privateKey);
+        
+        console.log(`Receive result: ${JSON.stringify(result)}`);
+        
+        if (debug) {
+          // Get additional debug information about the wallet
+          let debugInfo;
+          try {
+            const accountInfoResponse = await fetch(walletService.apiUrl, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': walletService.rpcKey
+              },
+              body: JSON.stringify({
+                action: 'account_info',
+                account: address,
+                representative: true,
+                pending: true
+              })
+            });
+            
+            debugInfo = await accountInfoResponse.json();
+          } catch (debugError) {
+            debugInfo = { error: "Could not fetch debug info" };
+          }
+          
+          // Return additional debug information
+          res.json({
+            ...result,
+            debug: {
+              walletAddress: address,
+              privateKeyProvided: !!privateKey,
+              privateKeyFirstChars: privateKey ? privateKey.substring(0, 6) + '...' : 'none',
+              accountInfo: debugInfo,
+              pendingBlocks: walletInfo.pending?.blocks || []
+            }
+          });
+        } else {
+          res.json(result);
+        }
+      } catch (processError) {
+        console.error('Error processing pending blocks:', processError);
+        
+        if (debug) {
+          // Return error details in debug mode
+          res.status(500).json({
+            received: false,
+            count: 0,
+            totalAmount: 0,
+            error: processError.message,
+            debug: {
+              errorDetails: processError.toString(),
+              walletAddress: address,
+              privateKeyProvided: !!privateKey,
+              privateKeyFirstChars: privateKey ? privateKey.substring(0, 6) + '...' : 'none',
+              pendingBlocks: walletInfo.pending?.blocks || []
+            }
+          });
+        } else {
+          res.status(500).json({ 
+            received: false, 
+            count: 0, 
+            totalAmount: 0,
+            error: processError.message 
+          });
+        }
+      }
     } catch (error: any) {
       console.error('Error in receive pending route:', error);
       res.status(500).json({ error: error.message });

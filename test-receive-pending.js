@@ -1,5 +1,6 @@
 import fetch from 'node-fetch';
-import { generateWallet } from 'nanocurrency-web';
+import pkg from 'nanocurrency-web';
+const { wallet } = pkg;
 
 async function receivePendingTransactions() {
   try {
@@ -7,6 +8,10 @@ async function receivePendingTransactions() {
     
     // Get the address from the command line arguments or use the default
     const address = process.argv[2] || 'nano_1741g9aff1abwix3cosopqd6r3kd3zin9cozpqjibjsc6qj17zckkbby1acc';
+    
+    // For testing, you can use this test wallet we generated:
+    // Address: nano_3fqywgx53t971be4wyzsejme4dmq6yoj99k5bw7adp9rnkrr9gzs56sqib7b
+    // Private Key: 0854c5648430d64171b32a0aa1b1da76d88dd3d2f36231f8a18aa6077e721d67
     
     // For testing only - generate a new wallet if needed
     // In production, the user should provide their own private key
@@ -16,14 +21,16 @@ async function receivePendingTransactions() {
       console.log('WARNING: No private key provided! Generating test wallet for this address...');
       try {
         // Generate a new wallet for testing (this won't have the same private key as our address)
-        const wallet = generateWallet();
-        privateKey = wallet.privateKey;
+        const newWallet = wallet.generate();
+        privateKey = newWallet.accounts[0].privateKey;
+        const testAddress = newWallet.accounts[0].address;
+        console.log(`Generated test wallet address: ${testAddress}`);
         console.log(`Generated test private key: ${privateKey}`);
         console.log(`This is ONLY for testing and won't be able to access the real wallet!`);
       } catch (err) {
         // If we can't generate a wallet, use a placeholder
         console.log('Failed to generate wallet, using placeholder key');
-        privateKey = '0000000000000000000000000000000000000000000000000000000000000000';
+        privateKey = '0854c5648430d64171b32a0aa1b1da76d88dd3d2f36231f8a18aa6077e721d67';
       }
     }
     
@@ -41,13 +48,14 @@ async function receivePendingTransactions() {
     if (walletInfo.pending && walletInfo.pending.blocks && walletInfo.pending.blocks.length > 0) {
       console.log(`Found ${walletInfo.pending.blocks.length} pending blocks to receive!`);
       
-      // Call the receive endpoint
+      // Call the receive endpoint in debug mode to get more details
       const receiveResponse = await fetch('http://localhost:5000/api/wallet/receive', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           address, 
-          privateKey 
+          privateKey,
+          debug: true  // Add debug flag to get more information
         })
       });
       

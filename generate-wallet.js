@@ -1,5 +1,6 @@
-import { generateWallet } from 'nanocurrency-web';
+import pkg from 'nanocurrency-web';
+const { wallet } = pkg;
 
 // Generate a new wallet
-const wallet = generateWallet();
-console.log(JSON.stringify(wallet, null, 2));
+const newWallet = wallet.generate();
+console.log(JSON.stringify(newWallet, null, 2));
