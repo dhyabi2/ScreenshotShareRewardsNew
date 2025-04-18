@@ -235,99 +235,160 @@ class WalletService {
         console.log(`Adding ${amount} raw to existing balance of ${accountInfo.balance} raw = ${newBalance} raw`);
       }
       
-      // Try to use the process RPC for receiving blocks
+      // This RPC endpoint only supports the 'process' action for receiving blocks
+      // Try to create and process the receive block
       try {
         // Log that we're generating work for this block
         console.log(`Generating work for receive block with GPU-KEY authentication...`);
         console.log(`New account: ${isNewAccount}, Previous: ${accountInfo?.frontier || 'null'}, Balance: ${newBalance} raw`);
         
-        // Create the proper representative value
-        const representative = accountInfo?.representative || address;
-        
-        // For new accounts (opening blocks), we need to use a well-known representative
-        // This increases the chance of the block being properly processed
-        const defaultRepresentative = 'nano_3rropjiqfxpmrrkooej4qtmm1pueu36f9ghinpho4esfdor8785a455d16nf';
-        
-        const response = await fetch(this.apiUrl, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': this.rpcKey,
-            'X-GPU-Key': 'RPC-KEY-BAB822FCCDAE42ECB7A331CCAAAA23' // GPU-KEY for work_generate
-          },
-          body: JSON.stringify({
-            action: 'process',
-            json_block: 'true',
-            subtype: 'receive',
-            block: {
-              type: 'state',
-              account: address,
-              previous: isNewAccount ? null : accountInfo.frontier,
-              representative: isNewAccount ? defaultRepresentative : representative,
-              balance: newBalance, // The updated balance after receiving
-              link: blockHash
-            },
-            do_work: true,
-            work_peers: [
-              ["rpc.nano.to", "443"]  // Provides the work peers to generate work
-            ],
-            private_key: privateKey
-          })
-        });
-        
-        const data = await response.json();
-        
-        if (data.error) {
-          console.error('Error processing receive using process RPC:', data.error);
+        // For a new account (opening block), we need different parameters
+        if (isNewAccount) {
+          try {
+            // For new accounts, we need to create a proper opening block
+            console.log('Creating opening block for new account');
+            
+            // Generate work for the public key of the account
+            const pubKey = address.startsWith('nano_') ? address.substring(5, 5 + 52) : address;
+            
+            // First get work pre-computed for the block
+            const workResponse = await fetch(this.apiUrl, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': this.rpcKey,
+                'X-GPU-Key': 'RPC-KEY-BAB822FCCDAE42ECB7A331CCAAAA23'
+              },
+              body: JSON.stringify({
+                action: 'work_generate',
+                hash: pubKey // For opening blocks, we use the public key as hash
+              })
+            });
+            
+            const workData = await workResponse.json();
+            
+            if (workData.error) {
+              console.error('Error generating work:', workData.error);
+              throw new Error(`Work generation failed: ${workData.error}`);
+            }
+            
+            const work = workData.work;
+            console.log(`Generated work: ${work}`);
+            
+            // Now create and process the opening block
+            const response = await fetch(this.apiUrl, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': this.rpcKey,
+                'X-GPU-Key': 'RPC-KEY-BAB822FCCDAE42ECB7A331CCAAAA23'
+              },
+              body: JSON.stringify({
+                action: 'process',
+                json_block: 'true',
+                block: {
+                  type: 'state',
+                  account: address,
+                  previous: null, // Opening block has no previous
+                  representative: 'nano_3rropjiqfxpmrrkooej4qtmm1pueu36f9ghinpho4esfdor8785a455d16nf', // Default rep
+                  balance: amount,
+                  link: blockHash,
+                  work: work
+                },
+                private_key: privateKey
+              })
+            });
+            
+            const data = await response.json();
+            
+            if (data.error) {
+              console.error('Error processing opening block:', data.error);
+              throw new Error(`Opening block is invalid: ${data.error}`);
+            }
+            
+            if (data.hash) {
+              console.log(`Successfully processed opening block: ${data.hash}`);
+              return { processed: true, hash: data.hash };
+            }
+          } catch (openingError) {
+            console.error('Error creating opening block:', openingError);
+          }
+        } else {
+          // For existing accounts, we can use the standard approach
+          const representative = accountInfo?.representative || address;
           
-          // Additional debug info
-          if (data.error.includes('Unreceivable') || data.error.includes('Gap source block')) {
-            console.log('This block may have already been received or there is a gap in the blockchain');
+          // First generate work for the previous block (frontier)
+          const workResponse = await fetch(this.apiUrl, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': this.rpcKey,
+              'X-GPU-Key': 'RPC-KEY-BAB822FCCDAE42ECB7A331CCAAAA23'
+            },
+            body: JSON.stringify({
+              action: 'work_generate',
+              hash: accountInfo.frontier
+            })
+          });
+          
+          const workData = await workResponse.json();
+          
+          if (workData.error) {
+            console.error('Error generating work:', workData.error);
+            throw new Error(`Work generation failed: ${workData.error}`);
           }
           
-          throw new Error(`Block is invalid: ${data.error}`);
-        }
-        
-        if (data.hash) {
-          console.log(`Successfully processed receive block: ${data.hash}`);
-          return { processed: true, hash: data.hash };
+          const work = workData.work;
+          console.log(`Generated work: ${work}`);
+          
+          // Create and process the receive block
+          const response = await fetch(this.apiUrl, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': this.rpcKey,
+              'X-GPU-Key': 'RPC-KEY-BAB822FCCDAE42ECB7A331CCAAAA23'
+            },
+            body: JSON.stringify({
+              action: 'process',
+              json_block: 'true',
+              block: {
+                type: 'state',
+                account: address,
+                previous: accountInfo.frontier,
+                representative: representative,
+                balance: newBalance,
+                link: blockHash,
+                work: work
+              },
+              private_key: privateKey
+            })
+          });
+          
+          const data = await response.json();
+          
+          if (data.error) {
+            console.error('Error processing receive block:', data.error);
+            
+            // Additional debug info
+            if (data.error.includes('Unreceivable') || data.error.includes('Gap source block')) {
+              console.log('This block may have already been received or there is a gap in the blockchain');
+            }
+            
+            throw new Error(`Block is invalid: ${data.error}`);
+          }
+          
+          if (data.hash) {
+            console.log(`Successfully processed receive block: ${data.hash}`);
+            return { processed: true, hash: data.hash };
+          }
         }
       } catch (processError) {
-        console.error('Error with process RPC method, trying alternative:', processError);
+        console.error('Error with process RPC method:', processError);
       }
       
-      // If the above fails, try an alternative approach using receive RPC call
-      console.log('Attempting alternative receive method...');
-      
-      try {
-        // Try using the receive RPC call which is sometimes more reliable for pending blocks
-        const response = await fetch(this.apiUrl, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': this.rpcKey,
-            'X-GPU-Key': 'RPC-KEY-BAB822FCCDAE42ECB7A331CCAAAA23'
-          },
-          body: JSON.stringify({
-            action: 'receive',
-            wallet: address, // For simplicity, using address as wallet - in a real implementation we would use a proper wallet ID
-            account: address,
-            block: blockHash
-          })
-        });
-        
-        const data = await response.json();
-        
-        if (data.error) {
-          console.error('Error processing receive using receive RPC:', data.error);
-        } else if (data.block) {
-          console.log(`Successfully received block using alternative method: ${data.block}`);
-          return { processed: true, hash: data.block };
-        }
-      } catch (altError) {
-        console.error('Alternative receive method also failed:', altError);
-      }
-      
+      // We reach here if all methods have failed
+      console.log('All receive methods failed. Could not process block.');
       return { processed: false, hash: undefined };
     } catch (error) {
       console.error('Failed to process receive transaction:', error);

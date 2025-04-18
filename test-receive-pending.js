@@ -1,12 +1,31 @@
 import fetch from 'node-fetch';
+import { generateWallet } from 'nanocurrency-web';
 
 async function receivePendingTransactions() {
   try {
     console.log('Attempting to receive pending transactions...');
     
-    // Replace with your actual wallet address and private key
-    const address = 'nano_1741g9aff1abwix3cosopqd6r3kd3zin9cozpqjibjsc6qj17zckkbby1acc';
-    const privateKey = '0000000000000000000000000000000000000000000000000000000000000000'; // You'll need to provide a real private key
+    // Get the address from the command line arguments or use the default
+    const address = process.argv[2] || 'nano_1741g9aff1abwix3cosopqd6r3kd3zin9cozpqjibjsc6qj17zckkbby1acc';
+    
+    // For testing only - generate a new wallet if needed
+    // In production, the user should provide their own private key
+    let privateKey = process.argv[3]; // Get private key from command line arg
+    
+    if (!privateKey) {
+      console.log('WARNING: No private key provided! Generating test wallet for this address...');
+      try {
+        // Generate a new wallet for testing (this won't have the same private key as our address)
+        const wallet = generateWallet();
+        privateKey = wallet.privateKey;
+        console.log(`Generated test private key: ${privateKey}`);
+        console.log(`This is ONLY for testing and won't be able to access the real wallet!`);
+      } catch (err) {
+        // If we can't generate a wallet, use a placeholder
+        console.log('Failed to generate wallet, using placeholder key');
+        privateKey = '0000000000000000000000000000000000000000000000000000000000000000';
+      }
+    }
     
     // First check wallet info to see pending blocks
     const infoResponse = await fetch('http://localhost:5000/api/wallet/info', {
