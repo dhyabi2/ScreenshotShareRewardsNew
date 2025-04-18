@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { queryClient } from "@/lib/queryClient";
-import { Loader2, Wallet as WalletIcon, Send, Download, RefreshCw, Copy, ExternalLink } from "lucide-react";
+import { Loader2, Wallet as WalletIcon, Send, Download, RefreshCw, Copy, ExternalLink, ArrowUpCircle, ArrowDownCircle, CircleSlash } from "lucide-react";
 
 interface WalletInfo {
   address: string;
@@ -711,11 +711,26 @@ export default function Wallet() {
             {/* Transactions Tab */}
             <TabsContent value="transactions">
               <Card>
-                <CardHeader>
-                  <CardTitle>Transaction History</CardTitle>
-                  <CardDescription>
-                    Recent transactions for your wallet
-                  </CardDescription>
+                <CardHeader className="flex flex-row items-center justify-between">
+                  <div>
+                    <CardTitle>Transaction History</CardTitle>
+                    <CardDescription>
+                      Recent transactions for your wallet
+                    </CardDescription>
+                  </div>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={() => refetchTxHistory()}
+                    disabled={txHistoryLoading}
+                  >
+                    {txHistoryLoading ? (
+                      <Loader2 className="h-4 w-4 animate-spin mr-1" />
+                    ) : (
+                      <RefreshCw size={14} className="mr-1" />
+                    )}
+                    Refresh
+                  </Button>
                 </CardHeader>
                 <CardContent>
                   {txHistoryLoading ? (
@@ -729,42 +744,74 @@ export default function Wallet() {
                           <tr className="border-b">
                             <th className="text-left p-2">Type</th>
                             <th className="text-left p-2">Amount</th>
-                            <th className="text-left p-2">Account</th>
-                            <th className="text-left p-2">Date</th>
-                            <th className="text-left p-2">Hash</th>
+                            <th className="text-left p-2 hidden md:table-cell">Account</th>
+                            <th className="text-left p-2 hidden md:table-cell">Date</th>
+                            <th className="text-left p-2">Actions</th>
                           </tr>
                         </thead>
                         <tbody>
                           {txHistory.map((tx: Transaction) => (
-                            <tr key={tx.hash} className="border-b hover:bg-gray-50">
+                            <tr key={tx.hash} className="border-b hover:bg-gray-50 group">
                               <td className="p-2">
-                                <span className={`inline-block px-2 py-1 text-xs font-medium rounded-full ${
+                                <span className={`inline-flex items-center px-2 py-1 text-xs font-medium rounded-full ${
                                   tx.type === 'receive' ? 'bg-green-100 text-green-800' : 'bg-amber-100 text-amber-800'
                                 }`}>
+                                  {tx.type === 'receive' ? (
+                                    <ArrowDownCircle size={12} className="mr-1" />
+                                  ) : (
+                                    <ArrowUpCircle size={12} className="mr-1" />
+                                  )}
                                   {tx.type === 'receive' ? 'Received' : 'Sent'}
                                 </span>
                               </td>
-                              <td className="p-2 font-medium">
-                                {parseFloat(tx.amount).toFixed(6)} XNO
+                              <td className={`p-2 font-medium ${tx.type === 'receive' ? 'text-green-600' : 'text-amber-600'}`}>
+                                {tx.type === 'receive' ? '+' : '-'}{parseFloat(tx.amount).toFixed(6)} XNO
                               </td>
-                              <td className="p-2">
-                                <span className="text-sm truncate block max-w-[120px]" title={tx.account}>
-                                  {tx.account.substring(0, 10)}...
-                                </span>
+                              <td className="p-2 hidden md:table-cell">
+                                <div className="flex items-center">
+                                  <span className="text-sm truncate block max-w-[120px]" title={tx.account}>
+                                    {tx.account.substring(0, 12)}...
+                                  </span>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-6 w-6 p-0 ml-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                                    onClick={() => copyToClipboard(tx.account, "Address copied")}
+                                  >
+                                    <Copy size={12} />
+                                  </Button>
+                                </div>
                               </td>
-                              <td className="p-2 text-sm">
+                              <td className="p-2 text-sm hidden md:table-cell">
                                 {formatDate(tx.timestamp)}
                               </td>
                               <td className="p-2">
-                                <a
-                                  href={`https://nanolooker.com/block/${tx.hash}`}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="text-primary hover:underline flex items-center text-sm"
-                                >
-                                  {tx.hash.substring(0, 8)}...
-                                  <ExternalLink size={12} className="ml-1" />
-                                </a>
+                                <div className="flex items-center gap-1">
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-7 p-1"
+                                    onClick={() => copyToClipboard(tx.hash, "Transaction hash copied")}
+                                    title="Copy transaction hash"
+                                  >
+                                    <Copy size={14} />
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-7 p-1"
+                                    asChild
+                                  >
+                                    <a
+                                      href={`https://nanolooker.com/block/${tx.hash}`}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      title="View on Nano Explorer"
+                                    >
+                                      <ExternalLink size={14} />
+                                    </a>
+                                  </Button>
+                                </div>
                               </td>
                             </tr>
                           ))}
@@ -773,25 +820,18 @@ export default function Wallet() {
                     </div>
                   ) : (
                     <div className="text-center py-8 text-gray-500">
-                      <p>No transaction history found for this wallet.</p>
+                      <CircleSlash className="h-12 w-12 mx-auto mb-3 text-gray-300" />
+                      <p className="font-medium">No transaction history found</p>
+                      <p className="text-sm mb-4">Transactions will appear here after sending or receiving XNO</p>
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        onClick={() => refetchTxHistory()}
+                      >
+                        <RefreshCw size={14} className="mr-1" /> Refresh History
+                      </Button>
                     </div>
                   )}
-                  
-                  <div className="mt-4 flex justify-end">
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
-                      onClick={() => refetchTxHistory()}
-                      disabled={txHistoryLoading}
-                    >
-                      {txHistoryLoading ? (
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      ) : (
-                        <RefreshCw className="mr-2 h-4 w-4" />
-                      )}
-                      Refresh History
-                    </Button>
-                  </div>
                 </CardContent>
               </Card>
             </TabsContent>
