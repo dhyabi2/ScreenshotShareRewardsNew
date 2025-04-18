@@ -1,10 +1,29 @@
+import * as nacurrency from 'nanocurrency-web';
+
 /**
- * Validate an XNO wallet address
+ * Validate an XNO wallet address using nanocurrency-web library
  */
 export function isValidXNOAddress(address: string): boolean {
   // Basic validation for Nano addresses
   if (!address) return false;
   
+  try {
+    // Use the nanocurrency-web library to validate the address
+    // This handles checksums and proper formatting
+    const isValid = nacurrency.tools.validateAddress(address);
+    return isValid;
+  } catch (error) {
+    console.error('Error validating address with nanocurrency-web:', error);
+    
+    // Fallback validation if the library throws an error
+    return fallbackValidateAddress(address);
+  }
+}
+
+/**
+ * Fallback address validator in case the library fails
+ */
+function fallbackValidateAddress(address: string): boolean {
   // Support both nano_ and xno_ prefixes
   if (!address.startsWith('nano_') && !address.startsWith('xno_')) return false;
   
