@@ -47,10 +47,11 @@ class NanoTransactions {
   }
 
   /**
-   * Generate work for a block hash
+   * Generate work for a block hash - tries multiple methods
    */
   async generateWork(hash: string): Promise<string> {
     try {
+      // Try first with the standard work_generate
       const response = await fetch(this.apiUrl, {
         method: 'POST',
         headers: {
@@ -61,18 +62,40 @@ class NanoTransactions {
         body: JSON.stringify({
           action: 'work_generate',
           hash: hash,
-          difficulty: 'fffffff800000000' // Using standard difficulty
+          difficulty: 'fffffff800000000' // Try standard difficulty first
         })
       });
 
       const data = await response.json() as any;
       
-      if (data.error) {
-        console.error('Error generating work:', data.error);
-        throw new Error(`Work generation failed: ${data.error}`);
+      // If successful, return the work
+      if (!data.error && data.work) {
+        return data.work;
       }
-
-      return data.work;
+      
+      console.log("First work generation attempt failed, trying alternative method");
+      
+      // If that fails, try the public node with lower difficulty
+      const fallbackResponse = await fetch('https://proxy.nanos.cc/proxy/', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          action: 'work_generate',
+          hash: hash,
+          difficulty: 'fffffe0000000000', // Lower difficulty as fallback
+        })
+      });
+      
+      const fallbackData = await fallbackResponse.json() as any;
+      
+      if (fallbackData.error) {
+        console.error('Error with fallback work generation:', fallbackData.error);
+        throw new Error(`All work generation attempts failed`);
+      }
+      
+      return fallbackData.work;
     } catch (error) {
       console.error('Failed to generate work:', error);
       throw error;
@@ -375,7 +398,7 @@ class NanoTransactions {
       const work = await this.generateWork(accountInfo.frontier);
       
       // For send blocks, the link is the public key of the destination account
-      const destPublicKey = nacurrency.tools.addressToPublicKey(toAddress);
+      const destPublicKey = nanocurrency.derivePublicKey(toAddress);
       
       // Create a state block
       const block: BlockData = {
@@ -471,7 +494,7 @@ class NanoTransactions {
           // Others return the value directly
           amountStr = amount?.toString() || '0';
         }
-        console.log(`Processing block ${blockHash} with amount ${amount} for ${address}`);
+        console.log(`Processing block ${blockHash} with amount ${amountStr} for ${address}`);
         
         let result;
         
