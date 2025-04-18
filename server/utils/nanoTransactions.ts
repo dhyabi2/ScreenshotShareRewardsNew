@@ -265,22 +265,35 @@ class NanoTransactions {
       
       // If that still fails, try with a public node
       console.log('Trying public node for block processing...');
-      const publicNodeResponse = await fetch('https://proxy.nanos.cc/proxy/', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          action: 'process',
-          json_block: 'true',
-          block: block
-        })
-      });
-      
-      const publicNodeData = await publicNodeResponse.json() as any;
-      
-      if (!publicNodeData.error && publicNodeData.hash) {
-        return { hash: publicNodeData.hash };
+      try {
+        const publicNodeResponse = await fetch('https://proxy.nanos.cc/proxy/', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            action: 'process',
+            json_block: 'true',
+            block: block
+          })
+        });
+        
+        // Check if the response is valid JSON
+        const text = await publicNodeResponse.text();
+        let publicNodeData;
+        try {
+          publicNodeData = JSON.parse(text);
+          
+          if (!publicNodeData.error && publicNodeData.hash) {
+            return { hash: publicNodeData.hash };
+          }
+        } catch (jsonError) {
+          console.log('Failed to parse public node response:', text);
+          // Continue with other methods
+        }
+      } catch (publicNodeError) {
+        console.log('Public node request failed:', publicNodeError);
+        // Continue with other methods
       }
       
       // If all methods fail, return the error from the original attempt
@@ -486,7 +499,7 @@ class NanoTransactions {
       
       // For send blocks, the link is the public key of the destination account
       // Extract public key directly - convert address to public key
-      const destPublicKey = Buffer.from(toAddress.replace('nano_', '').slice(0, 52), 'hex').toString('hex');
+      const publicKey = Buffer.from(toAddress.replace('nano_', '').slice(0, 52), 'hex').toString('hex');
       
       // Create a state block
       const block: BlockData = {
@@ -495,7 +508,7 @@ class NanoTransactions {
         previous: accountInfo.frontier,
         representative: representative,
         balance: newBalance,
-        link: destPublicKey,
+        link: publicKey,
         work: work
       };
       
