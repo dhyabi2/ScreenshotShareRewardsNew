@@ -273,8 +273,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       const walletInfo = await walletService.getWalletInfo(address);
+      
+      // Log wallet info for debugging
+      console.log(`Retrieved wallet info for ${address}: Balance=${walletInfo.balance}, Pending=${walletInfo.pending ? walletInfo.pending.blocks.length : 0} blocks`);
+      
       res.json(walletInfo);
     } catch (error: any) {
+      console.error('Error in wallet info route:', error);
       res.status(500).json({ error: error.message });
     }
   });
@@ -302,9 +307,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: 'Wallet address and private key are required' });
       }
       
+      console.log(`Attempting to receive pending funds for wallet: ${address}`);
+      
+      // First get wallet info to see if there's anything to receive
+      const walletInfo = await walletService.getWalletInfo(address);
+      console.log(`Wallet has ${walletInfo.pending?.blocks?.length || 0} pending blocks totaling ${walletInfo.pending?.totalAmount || 0} XNO`);
+      
+      // Process the pending blocks
       const result = await walletService.receivePending(address, privateKey);
+      
+      console.log(`Receive result: ${JSON.stringify(result)}`);
+      
       res.json(result);
     } catch (error: any) {
+      console.error('Error in receive pending route:', error);
       res.status(500).json({ error: error.message });
     }
   });

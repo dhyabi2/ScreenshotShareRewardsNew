@@ -48,7 +48,7 @@ export default function Wallet() {
     }
   }, [walletAddress]);
   
-  // Wallet info query with more frequent refresh
+  // Wallet info query with more frequent refresh and retry
   const { 
     data: walletInfo, 
     isLoading: walletInfoLoading,
@@ -63,10 +63,14 @@ export default function Wallet() {
       return api.getWalletInfo(walletAddress);
     },
     enabled: !!walletAddress,
-    refetchInterval: 15000, // Refetch every 15 seconds for more responsiveness
+    refetchInterval: 10000, // Refetch every 10 seconds for more responsiveness
+    refetchOnWindowFocus: true, // Refresh when window gets focus
+    refetchIntervalInBackground: true, // Keep refreshing even in background
+    retry: true, // Retry failed requests
+    retryDelay: 1000, // Wait 1 second between retries
   });
   
-  // Transaction history query - with auto refresh
+  // Transaction history query - with enhanced auto refresh
   const { 
     data: txHistory, 
     isLoading: txHistoryLoading,
@@ -81,7 +85,11 @@ export default function Wallet() {
     },
     enabled: !!walletAddress && validWallet,
     select: (data) => data.transactions,
-    refetchInterval: 15000, // Refresh every 15 seconds
+    refetchInterval: 10000, // Refresh every 10 seconds
+    refetchOnWindowFocus: true,
+    refetchIntervalInBackground: true,
+    retry: true,
+    retryDelay: 1000
   });
   
   // Upload stats query
