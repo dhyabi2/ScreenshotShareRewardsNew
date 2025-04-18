@@ -260,7 +260,10 @@ class WalletService {
               console.error('Error extracting public key from address:', error);
               
               // Fallback to manual extraction if the library fails
-              pubKey = address.startsWith('nano_') ? address.substring(5, 5 + 52) : address;
+              const accountNumber = address.replace('nano_', '');
+              // For Nano addresses, we need to extract just the public key part
+              // The public key is the first 52 characters after the prefix
+              pubKey = accountNumber.substring(0, 52);
               console.log(`Using fallback public key extraction: ${pubKey}`);
             }
             
@@ -289,41 +292,106 @@ class WalletService {
             const work = workData.work;
             console.log(`Generated work: ${work}`);
             
-            // Now create and process the opening block
-            const response = await fetch(this.apiUrl, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'Authorization': this.rpcKey,
-                'X-GPU-Key': 'RPC-KEY-BAB822FCCDAE42ECB7A331CCAAAA23'
-              },
-              body: JSON.stringify({
-                action: 'process',
-                json_block: 'true',
-                block: {
+            // Try two different methods for processing an opening block:
+            // 1. Using process with json_block and block structure
+            // 2. Using create_block with wallet specific parameters
+
+            // Method 1: Using the process action with state block
+            try {
+              console.log('Trying process action with json_block...');
+              const response = await fetch(this.apiUrl, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': this.rpcKey,
+                  'X-GPU-Key': 'RPC-KEY-BAB822FCCDAE42ECB7A331CCAAAA23'
+                },
+                body: JSON.stringify({
+                  action: 'process',
+                  json_block: 'true',
+                  block: {
+                    type: 'state',
+                    account: address,
+                    previous: null, // Opening block has no previous
+                    representative: 'nano_3rropjiqfxpmrrkooej4qtmm1pueu36f9ghinpho4esfdor8785a455d16nf', // Default rep
+                    balance: amount,
+                    link: blockHash,
+                    work: work
+                  },
+                  private_key: privateKey
+                })
+              });
+              
+              const data = await response.json();
+              
+              if (!data.error && data.hash) {
+                console.log(`Successfully processed opening block with process action: ${data.hash}`);
+                return { processed: true, hash: data.hash };
+              }
+              
+              console.log('Process action method failed, trying alternative method...');
+              
+            } catch (processError) {
+              console.error('Error with process action method:', processError);
+              console.log('Trying alternative method...');
+            }
+            
+            // Method 2: Using block_create action
+            try {
+              console.log('Trying block_create action...');
+              const response = await fetch(this.apiUrl, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': this.rpcKey,
+                  'X-GPU-Key': 'RPC-KEY-BAB822FCCDAE42ECB7A331CCAAAA23'
+                },
+                body: JSON.stringify({
+                  action: 'block_create',
                   type: 'state',
                   account: address,
                   previous: null, // Opening block has no previous
                   representative: 'nano_3rropjiqfxpmrrkooej4qtmm1pueu36f9ghinpho4esfdor8785a455d16nf', // Default rep
                   balance: amount,
                   link: blockHash,
-                  work: work
-                },
-                private_key: privateKey
-              })
-            });
-            
-            const data = await response.json();
-            
-            if (data.error) {
-              console.error('Error processing opening block:', data.error);
-              throw new Error(`Opening block is invalid: ${data.error}`);
+                  work: work,
+                  key: privateKey
+                })
+              });
+              
+              const data = await response.json();
+              
+              if (!data.error && data.hash) {
+                // For block_create, we need to publish the block afterwards
+                console.log(`Block created, now publishing: ${data.hash}`);
+                
+                const publishResponse = await fetch(this.apiUrl, {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': this.rpcKey,
+                    'X-GPU-Key': 'RPC-KEY-BAB822FCCDAE42ECB7A331CCAAAA23'
+                  },
+                  body: JSON.stringify({
+                    action: 'process',
+                    json_block: 'false',
+                    block: data.block,
+                  })
+                });
+                
+                const publishData = await publishResponse.json();
+                
+                if (!publishData.error) {
+                  console.log(`Successfully published opening block with block_create action: ${data.hash}`);
+                  return { processed: true, hash: data.hash };
+                }
+              }
+            } catch (blockCreateError) {
+              console.error('Error with block_create action method:', blockCreateError);
             }
             
-            if (data.hash) {
-              console.log(`Successfully processed opening block: ${data.hash}`);
-              return { processed: true, hash: data.hash };
-            }
+            // If we reached here, all methods failed
+            throw new Error('All methods to create opening block failed');
           } catch (openingError) {
             console.error('Error creating opening block:', openingError);
           }
