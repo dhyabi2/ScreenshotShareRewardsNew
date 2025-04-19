@@ -98,9 +98,33 @@ export default function WalletManager({ walletAddress: initialWalletAddress, onW
     }
   });
   
+  // Mutation to import an existing wallet using a private key
+  const importWalletMutation = useMutation({
+    mutationFn: (privateKey: string) => api.importWallet(privateKey),
+    onSuccess: (data) => {
+      setWalletAddress(data.address);
+      
+      if (onWalletUpdated) {
+        onWalletUpdated(data.address);
+      }
+      
+      toast({
+        title: "Wallet Imported",
+        description: "Your XNO wallet has been imported successfully!",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error Importing Wallet",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  });
+  
   // Mutation to receive pending transactions
   const receiveTransactionsMutation = useMutation({
-    mutationFn: () => api.receiveTransactions(walletAddress, privateKey),
+    mutationFn: () => api.receivePending(walletAddress, privateKey),
     onSuccess: (data) => {
       if (data.received) {
         toast({
@@ -174,6 +198,10 @@ export default function WalletManager({ walletAddress: initialWalletAddress, onW
   const [acceptedTerms1, setAcceptedTerms1] = useState(false);
   const [acceptedTerms2, setAcceptedTerms2] = useState(false);
   
+  // States for wallet import
+  const [importPrivateKey, setImportPrivateKey] = useState('');
+  const [showImportDialog, setShowImportDialog] = useState(false);
+  
   // Handle wallet creation with confirmation
   const showWalletCreationDialog = () => {
     setAcceptedTerms1(false);
@@ -193,6 +221,25 @@ export default function WalletManager({ walletAddress: initialWalletAddress, onW
         variant: "destructive",
       });
     }
+  };
+  
+  const handleImportWallet = () => {
+    if (!importPrivateKey) {
+      toast({
+        title: "Private Key Required",
+        description: "Please enter your private key to import a wallet.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    // Save the private key to localStorage as well
+    localStorage.setItem('xno_private_key', importPrivateKey);
+    setPrivateKey(importPrivateKey);
+    
+    // Import the wallet
+    importWalletMutation.mutate(importPrivateKey);
+    setShowImportDialog(false);
   };
   
   const handleReceiveTransactions = () => {
@@ -279,20 +326,100 @@ export default function WalletManager({ walletAddress: initialWalletAddress, onW
         </CardHeader>
         <CardContent>
           <p className="mb-4">Generate a new XNO wallet to unlock, tip, and receive rewards.</p>
-          <Button 
-            onClick={showWalletCreationDialog} 
-            disabled={generateWalletMutation.isPending}
-            className="w-full"
-          >
-            {generateWalletMutation.isPending ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Creating Wallet...
-              </>
-            ) : (
-              'Generate New Wallet'
-            )}
-          </Button>
+          <div className="space-y-3">
+            <Button 
+              onClick={showWalletCreationDialog} 
+              disabled={generateWalletMutation.isPending}
+              className="w-full"
+            >
+              {generateWalletMutation.isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Creating Wallet...
+                </>
+              ) : (
+                'Generate New Wallet'
+              )}
+            </Button>
+            
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+                <span className="w-full border-t" />
+              </div>
+              <div className="relative flex justify-center text-xs uppercase">
+                <span className="bg-background px-2 text-muted-foreground">
+                  Or
+                </span>
+              </div>
+            </div>
+            
+            <Button 
+              variant="outline" 
+              onClick={() => setShowImportDialog(true)}
+              disabled={importWalletMutation.isPending}
+              className="w-full"
+            >
+              {importWalletMutation.isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Importing Wallet...
+                </>
+              ) : (
+                'Import Existing Wallet'
+              )}
+            </Button>
+          </div>
+          
+          {/* Wallet Import Dialog */}
+          <Dialog open={showImportDialog} onOpenChange={setShowImportDialog}>
+            <DialogContent className="sm:max-w-md">
+              <DialogHeader>
+                <DialogTitle>Import Existing Wallet</DialogTitle>
+                <DialogDescription>
+                  Enter your private key to import an existing XNO wallet.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="grid gap-4 py-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="privateKey">Private Key</Label>
+                  <Input
+                    id="privateKey"
+                    type="text"
+                    value={importPrivateKey}
+                    onChange={(e) => setImportPrivateKey(e.target.value)}
+                    placeholder="64-character hexadecimal private key"
+                    className="font-mono text-xs"
+                  />
+                  <p className="text-sm text-muted-foreground">
+                    Your private key will be stored in your browser's localStorage for convenience.
+                  </p>
+                </div>
+              </div>
+              <DialogFooter className="sm:justify-between">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={() => setShowImportDialog(false)}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="button"
+                  onClick={handleImportWallet}
+                  disabled={importWalletMutation.isPending || !importPrivateKey}
+                >
+                  {importWalletMutation.isPending ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Importing...
+                    </>
+                  ) : (
+                    'Import Wallet'
+                  )}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
           
           {/* Wallet Creation Confirmation Dialog */}
           <AlertDialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>

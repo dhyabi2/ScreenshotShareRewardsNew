@@ -138,6 +138,13 @@ export const api = {
     return res.json();
   },
   
+  importWallet: async (privateKey: string): Promise<{
+    address: string;
+  }> => {
+    const res = await apiRequest("POST", "/api/wallet/import", { privateKey });
+    return res.json();
+  },
+  
   getAccountInfo: async (address: string): Promise<any> => {
     const res = await apiRequest("POST", "/api/wallet/account-details", { address });
     return res.json();
