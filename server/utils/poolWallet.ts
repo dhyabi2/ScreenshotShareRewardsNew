@@ -234,6 +234,10 @@ class PoolWallet {
   
   /**
    * Process a user upvote payment, splitting between creator and pool
+   * 
+   * Implements the Self-Sustained Model with 80/20 split:
+   * - 80% of upvote payment goes to the content creator
+   * - 20% of upvote payment goes to the reward pool
    */
   async processUpvote(
     fromWallet: string, 
@@ -241,15 +245,24 @@ class PoolWallet {
     creatorWallet: string, 
     contentId: number,
     amount: number = 0.01 // Default 0.01 XNO per upvote
-  ): Promise<{ success: boolean; creatorTx?: string; poolTx?: string; error?: string }> {
+  ): Promise<{ 
+    success: boolean; 
+    creatorTx?: string; 
+    poolTx?: string; 
+    creatorAmount?: number;
+    poolAmount?: number;
+    error?: string 
+  }> {
     if (!this.isConfigured()) {
       throw new Error('Pool wallet not configured');
     }
     
     try {
-      // Calculate splits (80% to creator, 20% to pool)
+      // Calculate splits (80% to creator, 20% to pool) - Self-Sustained Model
       const creatorAmount = amount * 0.8;
       const poolAmount = amount * 0.2;
+      
+      log(`Processing upvote payment: ${amount} XNO total (${creatorAmount} XNO to creator, ${poolAmount} XNO to pool)`, 'poolWallet');
       
       // Send to creator first
       const creatorResult = await nanoTransactions.createSendBlock(
@@ -260,11 +273,14 @@ class PoolWallet {
       );
       
       if (!creatorResult.success) {
+        log(`Failed to send to creator: ${creatorResult.error}`, 'poolWallet');
         return { 
           success: false, 
           error: `Failed to send to creator: ${creatorResult.error}` 
         };
       }
+      
+      log(`Successfully sent ${creatorAmount} XNO to creator (${creatorWallet}), tx: ${creatorResult.hash}`, 'poolWallet');
       
       // Then send to pool
       const poolResult = await nanoTransactions.createSendBlock(
@@ -275,12 +291,16 @@ class PoolWallet {
       );
       
       if (!poolResult.success) {
+        log(`Sent to creator but failed to send to pool: ${poolResult.error}`, 'poolWallet');
         return { 
           success: false, 
           creatorTx: creatorResult.hash,
+          creatorAmount,
           error: `Sent to creator but failed to send to pool: ${poolResult.error}` 
         };
       }
+      
+      log(`Successfully sent ${poolAmount} XNO to pool (${this.poolAddress}), tx: ${poolResult.hash}`, 'poolWallet');
       
       // Update pool balance
       this.poolStats.totalPool += poolAmount;
@@ -289,12 +309,16 @@ class PoolWallet {
       return {
         success: true,
         creatorTx: creatorResult.hash,
-        poolTx: poolResult.hash
+        poolTx: poolResult.hash,
+        creatorAmount,
+        poolAmount
       };
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error during upvote processing';
+      log(`Error in processUpvote: ${errorMessage}`, 'poolWallet');
       return { 
         success: false,
-        error: error instanceof Error ? error.message : 'Unknown error during upvote processing'
+        error: errorMessage
       };
     }
   }

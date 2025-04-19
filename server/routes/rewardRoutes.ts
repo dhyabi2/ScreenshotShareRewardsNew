@@ -71,7 +71,14 @@ router.post('/estimated-earnings', async (req: Request, res: Response) => {
 });
 
 /**
- * Process an upvote payment
+ * Process an upvote payment with the 80/20 Self-Sustained Model
+ *
+ * How it works:
+ * 1. User makes an upvote payment through wallet interface
+ * 2. 80% of the payment goes to the content creator
+ * 3. 20% of the payment goes to the reward pool
+ * 4. Transaction details are recorded in the likes table
+ * 5. Corresponding payment records are created
  */
 router.post('/process-upvote', async (req: Request, res: Response) => {
   try {
@@ -89,32 +96,53 @@ router.post('/process-upvote', async (req: Request, res: Response) => {
       return res.status(404).json({ error: 'Content not found' });
     }
     
-    // Process the upvote payment
+    // Check if user already upvoted this content
+    const alreadyLiked = await storage.hasLiked(contentId, fromWallet);
+    if (alreadyLiked) {
+      return res.status(400).json({ error: 'You have already upvoted this content' });
+    }
+    
+    // Process the upvote payment - implements the 80/20 split
+    const upvoteAmount = amount || 0.01;
+    log(`Processing upvote of ${upvoteAmount} XNO from ${fromWallet} to ${creatorWallet} for content #${contentId}`, 'rewardRoutes');
+    
     const result = await poolWallet.processUpvote(
       fromWallet,
       privateKey,
       creatorWallet,
       contentId,
-      amount || 0.01
+      upvoteAmount
     );
     
     if (result.success) {
-      // Record the payment in storage
+      // Record the like with payment details
       await storage.addLike({
         walletAddress: fromWallet,
-        contentId
+        contentId,
+        creatorWallet,
+        amountPaid: upvoteAmount.toString(),
+        creatorTxHash: result.creatorTx,
+        poolTxHash: result.poolTx
       });
+      
+      log(`Successfully processed upvote payment: ${upvoteAmount} XNO`, 'rewardRoutes');
+      log(`- Creator (${creatorWallet}) received: ${result.creatorAmount} XNO (80%)`, 'rewardRoutes');
+      log(`- Pool received: ${result.poolAmount} XNO (20%)`, 'rewardRoutes');
       
       res.json({
         success: true,
-        message: 'Payment processed successfully',
+        message: 'Upvote payment processed successfully',
         creatorTx: result.creatorTx,
-        poolTx: result.poolTx
+        poolTx: result.poolTx,
+        amountPaid: upvoteAmount,
+        creatorAmount: result.creatorAmount,
+        poolAmount: result.poolAmount
       });
     } else {
+      log(`Failed to process upvote payment: ${result.error}`, 'rewardRoutes');
       res.status(400).json({
         success: false,
-        error: result.error || 'Unknown error processing payment'
+        error: result.error || 'Unknown error processing upvote payment'
       });
     }
   } catch (error: any) {

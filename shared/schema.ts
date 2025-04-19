@@ -24,6 +24,10 @@ export const likes = pgTable("likes", {
   id: serial("id").primaryKey(),
   contentId: integer("content_id").notNull(),
   walletAddress: text("wallet_address").notNull(),
+  creatorWallet: text("creator_wallet"), // Store the content creator's wallet
+  amountPaid: decimal("amount_paid", { precision: 12, scale: 6 }), // Total amount of XNO paid for the upvote
+  creatorTxHash: text("creator_tx_hash"), // Transaction hash for creator payment
+  poolTxHash: text("pool_tx_hash"), // Transaction hash for pool contribution
   createdAt: timestamp("created_at").notNull().defaultNow()
 });
 
@@ -35,7 +39,8 @@ export const payments = pgTable("payments", {
   amount: decimal("amount", { precision: 12, scale: 6 }).notNull(),
   contentId: integer("content_id"),
   verified: boolean("verified").notNull().default(false),
-  type: text("type", { enum: ["tip", "payment"] }).notNull(),
+  type: text("type", { enum: ["tip", "payment", "upvote_creator", "upvote_pool"] }).notNull(),
+  txHash: text("tx_hash"), // Blockchain transaction hash
   createdAt: timestamp("created_at").notNull().defaultNow()
 });
 

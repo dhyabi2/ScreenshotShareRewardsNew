@@ -141,6 +141,33 @@ export class MemStorage implements IStorage {
       await this.updateContent(content.id, { 
         likeCount: content.likeCount + 1 
       });
+      
+      // If this is a paid upvote, record the payment
+      if (like.amountPaid && like.creatorTxHash && like.poolTxHash) {
+        const totalAmount = parseFloat(like.amountPaid.toString());
+        
+        // Create a payment record for the creator (80%)
+        if (like.creatorWallet) {
+          await this.createPayment({
+            fromWallet: like.walletAddress,
+            toWallet: like.creatorWallet,
+            amount: totalAmount * 0.8,
+            contentId: like.contentId,
+            type: 'payment',
+            txHash: like.creatorTxHash
+          });
+        }
+        
+        // Create a payment record for the pool (20%)
+        await this.createPayment({
+          fromWallet: like.walletAddress,
+          toWallet: process.env.PUBLIC_POOL_ADDRESS || '',
+          amount: totalAmount * 0.2,
+          contentId: like.contentId,
+          type: 'payment',
+          txHash: like.poolTxHash
+        });
+      }
     }
     
     return newLike;
