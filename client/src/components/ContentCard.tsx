@@ -1,10 +1,11 @@
 import { useState } from "react";
 import { Link } from "wouter";
 import { useMutation } from "@tanstack/react-query";
-import { Heart, DollarSign, Share2, Flag } from "lucide-react";
+import { Heart, DollarSign, Share2, Flag, ThumbsUp } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Content } from "@/types";
 import { truncateAddress } from "@/lib/xno";
+import { formatXNO } from "@/lib/utils";
 import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import {
@@ -27,6 +28,7 @@ import { queryClient } from "@/lib/queryClient";
 import WalletVerificationModal from "./modals/WalletVerificationModal";
 import TipModal from "./modals/TipModal";
 import PaymentModal from "./modals/PaymentModal";
+import UpvoteModal from "./modals/UpvoteModal";
 
 interface ContentCardProps {
   content: Content;

@@ -225,5 +225,46 @@ export const api = {
       throw new Error("Failed to fetch estimated earnings");
     }
     return response.json();
+  },
+  
+  /**
+   * Process an upvote payment with the 80/20 Self-Sustained Model
+   * - 80% of payment goes to content creator
+   * - 20% of payment goes to reward pool
+   */
+  processUpvote: async (
+    fromWallet: string, 
+    privateKey: string, 
+    creatorWallet: string, 
+    contentId: number, 
+    amount: number = 0.01
+  ): Promise<{
+    success: boolean;
+    message?: string;
+    creatorTx?: string;
+    poolTx?: string;
+    amountPaid?: number;
+    creatorAmount?: number;
+    poolAmount?: number;
+    error?: string;
+  }> => {
+    const response = await fetch('/api/rewards/process-upvote', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        fromWallet,
+        privateKey,
+        creatorWallet,
+        contentId,
+        amount
+      })
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || 'Failed to process upvote payment');
+    }
+    
+    return response.json();
   }
 };
