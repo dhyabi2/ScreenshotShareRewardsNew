@@ -69,6 +69,16 @@ export default function WalletVerificationModal({
       return;
     }
     
+    // Check if we have a saved private key for this wallet
+    const savedKey = localStorage.getItem(`nano_wallet_${walletAddress}`);
+    if (savedKey) {
+      setPrivateKey(savedKey);
+      toast({
+        title: "Private key found",
+        description: "Found a saved private key for this wallet.",
+      });
+    }
+    
     verifyMutation.mutate(walletAddress);
   };
   
