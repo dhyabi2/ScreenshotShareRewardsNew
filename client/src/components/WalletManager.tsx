@@ -316,45 +316,19 @@ export default function WalletManager({ walletAddress: initialWalletAddress, onW
     );
   };
   
-  // If no wallet is set up, show wallet creation UI
+  // If no wallet is set up, show only wallet import UI (hide wallet generation)
   if (!walletAddress) {
     return (
       <Card className="w-full max-w-lg mx-auto">
         <CardHeader>
-          <CardTitle>Create a Wallet</CardTitle>
+          <CardTitle>Import Your Wallet</CardTitle>
           <CardDescription>You need an XNO wallet to use this application</CardDescription>
         </CardHeader>
         <CardContent>
-          <p className="mb-4">Generate a new XNO wallet to unlock, tip, and receive rewards.</p>
+          <p className="mb-4">Import your existing XNO wallet to unlock, tip, and receive rewards.</p>
           <div className="space-y-3">
             <Button 
-              onClick={showWalletCreationDialog} 
-              disabled={generateWalletMutation.isPending}
-              className="w-full"
-            >
-              {generateWalletMutation.isPending ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Creating Wallet...
-                </>
-              ) : (
-                'Generate New Wallet'
-              )}
-            </Button>
-            
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center">
-                <span className="w-full border-t" />
-              </div>
-              <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-background px-2 text-muted-foreground">
-                  Or
-                </span>
-              </div>
-            </div>
-            
-            <Button 
-              variant="outline" 
+              variant="default" 
               onClick={() => setShowImportDialog(true)}
               disabled={importWalletMutation.isPending}
               className="w-full"
