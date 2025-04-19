@@ -39,22 +39,48 @@ class PoolWallet {
   private lastUpdated: Date = new Date();
   
   constructor() {
-    // Initialize with Replit secrets
-    this.poolAddress = process.env.PUBLIC_KEY || '';
-    this.poolPrivateKey = process.env.RPC_KEY || '';
+    log('Initializing pool wallet from Replit secrets...', 'poolWallet');
     
-    // Log initialization (without sensitive data)
-    if (this.poolAddress) {
-      log(`Pool wallet initialized with address: ${this.poolAddress}`, 'poolWallet');
+    // Initialize with Replit secrets
+    const publicKey = process.env.PUBLIC_KEY || '';
+    const rpcKey = process.env.RPC_KEY || '';
+    
+    // Debug available environment variables (without showing actual values)
+    const envKeys = Object.keys(process.env);
+    log(`Available environment variables: ${envKeys.join(', ')}`, 'poolWallet');
+    
+    // Check if we have proper nano addresses (nano_...)
+    const isValidPublicKey = publicKey.startsWith('nano_') && publicKey.length > 60;
+    const isValidPrivateKey = rpcKey.length >= 64; // Check private key length
+    
+    // Ensure the secrets are properly loaded from Replit
+    if (!isValidPublicKey || !isValidPrivateKey) {
+      log('⚠️ Pool wallet secrets not found or invalid. The application requires proper Nano wallet PUBLIC_KEY and RPC_KEY to be set as Replit secrets.', 'poolWallet');
+      log(`PUBLIC_KEY is valid format: ${isValidPublicKey}`, 'poolWallet');
+      log(`RPC_KEY is valid format: ${isValidPrivateKey}`, 'poolWallet');
+      
+      // Try to handle the case by checking if we're in a development environment
+      if (process.env.NODE_ENV === 'development') {
+        log('Development environment detected. Using fallback values.', 'poolWallet');
+        // Use a development fallback wallet address for testing
+        this.poolAddress = 'nano_3sho393cso6ewdz8adndh16ssdzhkxztodjweatc3or34utkaydus4fmftj6';
+        this.poolPrivateKey = '';
+      } else {
+        // In production, we must have these values
+        throw new Error('Missing or invalid Replit secrets: PUBLIC_KEY and RPC_KEY');
+      }
     } else {
-      log('⚠️ Pool wallet not found in environment. The application requires PUBLIC_KEY and RPC_KEY to be set as Replit secrets.', 'poolWallet');
+      // Set the values from Replit secrets
+      this.poolAddress = publicKey;
+      this.poolPrivateKey = rpcKey;
+      log(`✅ Pool wallet successfully initialized with address: ${this.poolAddress}`, 'poolWallet');
     }
     
     // Initialize pool settings with default values
     this.updatePoolSettings({
       uploadPoolPercentage: 70,
       likePoolPercentage: 30,
-      dailyDistribution: 5
+      dailyDistribution: 0.1 // Start with a small daily distribution
     });
   }
 
