@@ -601,6 +601,73 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
+  // Process tipping using real XNO transactions
+  app.post('/api/wallet/send-tip', async (req, res) => {
+    try {
+      const { fromAddress, privateKey, toAddress, amount } = req.body;
+      
+      if (!fromAddress || !privateKey || !toAddress || !amount) {
+        return res.status(400).json({ 
+          success: false, 
+          error: 'Missing required parameters: fromAddress, privateKey, toAddress, amount' 
+        });
+      }
+      
+      // Validate parameters
+      if (!walletService.isValidAddress(fromAddress)) {
+        return res.status(400).json({ success: false, error: 'Invalid sender address format' });
+      }
+      
+      if (!walletService.isValidAddress(toAddress)) {
+        return res.status(400).json({ success: false, error: 'Invalid recipient address format' });
+      }
+      
+      // Parse amount - ensure it's a number and positive
+      let parsedAmount: number;
+      try {
+        parsedAmount = parseFloat(amount);
+        if (isNaN(parsedAmount) || parsedAmount <= 0) {
+          throw new Error('Invalid amount');
+        }
+      } catch (error) {
+        return res.status(400).json({ success: false, error: 'Amount must be a positive number' });
+      }
+      
+      // Get tip amount as string for the blockchain transaction
+      const amountStr = parsedAmount.toString();
+      
+      // Use the sendXno service to process the real XNO transaction
+      const { sendXnoService } = require('./utils/sendXno');
+      const result = await sendXnoService.sendTransaction(fromAddress, privateKey, toAddress, amountStr);
+      
+      if (result.success) {
+        console.log(`✅ Successfully processed tip from ${fromAddress} to ${toAddress} for ${amountStr} XNO`);
+        console.log(`Transaction hash: ${result.hash}`);
+        
+        // Record the tip in our database if needed
+        // TODO: Add storage.createPayment() here if needed to track tips
+        
+        return res.json({
+          success: true,
+          hash: result.hash,
+          message: `Successfully sent ${amountStr} XNO to ${toAddress}`
+        });
+      } else {
+        console.error(`❌ Failed to process tip: ${result.error}`);
+        return res.status(400).json({
+          success: false,
+          error: result.error
+        });
+      }
+    } catch (error) {
+      console.error('Error processing tip:', error);
+      res.status(500).json({ 
+        success: false, 
+        error: error instanceof Error ? error.message : 'Unknown error processing tip' 
+      });
+    }
+  });
+  
   // Get detailed account information
   app.post('/api/wallet/account-details', async (req, res) => {
     try {

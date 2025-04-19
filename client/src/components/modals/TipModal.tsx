@@ -165,17 +165,40 @@ export default function TipModal({
             </div>
           </div>
           
-          {!activeWallet && (
+          {(!activeWallet || !privateKey) && (
             <div className="mt-4 p-2 bg-amber-50 border border-amber-200 rounded-md text-amber-800 text-sm">
-              <p>No wallet connected. Your tip will still be processed, but payment verification won't be available.</p>
+              {!activeWallet ? (
+                <p>No wallet connected. Please connect your wallet first to send tips.</p>
+              ) : !privateKey ? (
+                <p>Wallet connected but missing private key. Please reconnect your wallet with a private key to send tips.</p>
+              ) : null}
+            </div>
+          )}
+          
+          {activeWallet && privateKey && (
+            <div className="mt-4 p-2 bg-green-50 border border-green-200 rounded-md text-green-800 text-sm">
+              <p>Ready to send tip from <strong>{truncateAddress(activeWallet)}</strong></p>
             </div>
           )}
         </div>
         
-        <DialogFooter>
+        <DialogFooter className="flex flex-col gap-2">
+          {(!activeWallet || !privateKey) && (
+            <Button
+              onClick={() => {
+                // Close tip modal and let user connect wallet
+                onOpenChange(false);
+                // Could add a wallet connect call here if we have a shared wallet connect modal
+              }}
+              className="w-full flex items-center justify-center bg-blue-600 hover:bg-blue-700 text-white"
+            >
+              Connect Wallet First
+            </Button>
+          )}
+          
           <Button
             onClick={handleSendTip}
-            disabled={isProcessing}
+            disabled={isProcessing || !activeWallet || !privateKey}
             className="w-full flex items-center justify-center bg-[#F7B801] hover:bg-[#F7B801]/90 text-white"
           >
             {isProcessing ? (
