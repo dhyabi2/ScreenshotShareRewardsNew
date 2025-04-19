@@ -18,7 +18,7 @@ import { Loader2 } from "lucide-react";
 interface WalletVerificationModalProps {
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
-  onWalletVerified: (address: string) => void;
+  onWalletVerified: (address: string, privateKey?: string) => void;
 }
 
 export default function WalletVerificationModal({ 
@@ -27,6 +27,9 @@ export default function WalletVerificationModal({
   onWalletVerified
 }: WalletVerificationModalProps) {
   const [walletAddress, setWalletAddress] = useState("");
+  const [privateKey, setPrivateKey] = useState("");
+  const [showPrivateKey, setShowPrivateKey] = useState(false);
+  const [importMode, setImportMode] = useState(false);
   const [walletInfo, setWalletInfo] = useState<{ balance: number; valid: boolean } | null>(null);
   const { toast } = useToast();
   
@@ -69,9 +72,62 @@ export default function WalletVerificationModal({
     verifyMutation.mutate(walletAddress);
   };
   
+  // Import wallet from private key
+  const importWalletMutation = useMutation({
+    mutationFn: (key: string) => api.importWallet(key),
+    onSuccess: (data) => {
+      if (data.address) {
+        setWalletAddress(data.address);
+        setWalletInfo({ balance: data.balance, valid: true });
+        
+        // Store the private key in localStorage for persistence
+        if (data.address && privateKey) {
+          localStorage.setItem(`nano_wallet_${data.address}`, privateKey);
+        }
+        
+        toast({
+          title: "Wallet imported",
+          description: "Your XNO wallet has been imported successfully.",
+        });
+      } else {
+        toast({
+          title: "Import failed",
+          description: "Could not import wallet from the provided private key.",
+          variant: "destructive",
+        });
+      }
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Import failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  });
+  
+  const handleImportWallet = () => {
+    if (!privateKey || privateKey.length < 64) {
+      toast({
+        title: "Invalid private key",
+        description: "Please enter a valid XNO private key (64+ characters).",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    importWalletMutation.mutate(privateKey);
+  };
+  
   const handleConfirm = () => {
     if (walletInfo?.valid) {
-      onWalletVerified(walletAddress);
+      // Pass private key to parent component if available
+      onWalletVerified(walletAddress, privateKey || undefined);
+      
+      // Store the private key in localStorage for persistence
+      if (walletAddress && privateKey) {
+        localStorage.setItem(`nano_wallet_${walletAddress}`, privateKey);
+      }
     } else {
       toast({
         title: "Invalid wallet",
@@ -91,42 +147,128 @@ export default function WalletVerificationModal({
           </DialogDescription>
         </DialogHeader>
         
+        <div className="flex mb-4">
+          <div 
+            className={`flex-1 py-2 px-4 text-center font-medium cursor-pointer ${!importMode ? 'bg-primary text-white' : 'bg-gray-100'}`}
+            onClick={() => setImportMode(false)}
+          >
+            Verify Address
+          </div>
+          <div 
+            className={`flex-1 py-2 px-4 text-center font-medium cursor-pointer ${importMode ? 'bg-primary text-white' : 'bg-gray-100'}`}
+            onClick={() => setImportMode(true)}
+          >
+            Import Private Key
+          </div>
+        </div>
+        
         <div className="bg-primary bg-opacity-10 p-3 rounded-lg mb-4">
           <p className="text-sm text-gray-600">
-            Enter your XNO wallet address below to verify and check its balance.
+            {importMode 
+              ? "Import your wallet by entering your private key. This will be securely stored in your browser's local storage."
+              : "Enter your XNO wallet address below to verify and check its balance."
+            }
           </p>
         </div>
         
         <div className="space-y-4">
-          <div className="space-y-2">
-            <label htmlFor="wallet-address" className="text-sm font-medium">
-              Wallet Address
-            </label>
-            <Input
-              id="wallet-address"
-              className="font-mono text-sm"
-              placeholder="nano_1abc123..."
-              value={walletAddress}
-              onChange={(e) => setWalletAddress(e.target.value)}
-            />
-          </div>
-          
-          <Button
-            type="button"
-            variant="outline"
-            onClick={handleVerify}
-            disabled={verifyMutation.isPending || !walletAddress}
-            className="w-full"
-          >
-            {verifyMutation.isPending ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Verifying...
-              </>
-            ) : (
-              "Verify Wallet"
-            )}
-          </Button>
+          {importMode ? (
+            <div className="space-y-2">
+              <label htmlFor="private-key" className="text-sm font-medium flex justify-between">
+                <span>Private Key</span>
+                <button 
+                  type="button" 
+                  className="text-xs text-gray-500 hover:text-primary"
+                  onClick={() => setShowPrivateKey(!showPrivateKey)}
+                >
+                  {showPrivateKey ? "Hide" : "Show"}
+                </button>
+              </label>
+              <Input
+                id="private-key"
+                className="font-mono text-sm"
+                type={showPrivateKey ? "text" : "password"}
+                placeholder="Enter your private key"
+                value={privateKey}
+                onChange={(e) => setPrivateKey(e.target.value)}
+              />
+              
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handleImportWallet}
+                disabled={importWalletMutation.isPending || !privateKey}
+                className="w-full mt-2"
+              >
+                {importWalletMutation.isPending ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Importing...
+                  </>
+                ) : (
+                  "Import Wallet"
+                )}
+              </Button>
+            </div>
+          ) : (
+            <div>
+              <div className="space-y-2">
+                <label htmlFor="wallet-address" className="text-sm font-medium">
+                  Wallet Address
+                </label>
+                <Input
+                  id="wallet-address"
+                  className="font-mono text-sm"
+                  placeholder="nano_1abc123..."
+                  value={walletAddress}
+                  onChange={(e) => setWalletAddress(e.target.value)}
+                />
+              </div>
+              
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handleVerify}
+                disabled={verifyMutation.isPending || !walletAddress}
+                className="w-full mt-2"
+              >
+                {verifyMutation.isPending ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Verifying...
+                  </>
+                ) : (
+                  "Verify Wallet"
+                )}
+              </Button>
+              
+              {walletInfo?.valid && (
+                <div className="mt-4">
+                  <div className="text-sm mb-1 text-gray-600">For full wallet functionality (including upvoting):</div>
+                  <div className="space-y-2">
+                    <label htmlFor="private-key-optional" className="text-sm font-medium flex justify-between">
+                      <span>Private Key (Optional)</span>
+                      <button 
+                        type="button" 
+                        className="text-xs text-gray-500 hover:text-primary"
+                        onClick={() => setShowPrivateKey(!showPrivateKey)}
+                      >
+                        {showPrivateKey ? "Hide" : "Show"}
+                      </button>
+                    </label>
+                    <Input
+                      id="private-key-optional"
+                      className="font-mono text-sm"
+                      type={showPrivateKey ? "text" : "password"}
+                      placeholder="Enter your private key (for full functionality)"
+                      value={privateKey}
+                      onChange={(e) => setPrivateKey(e.target.value)}
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
           
           {walletInfo && (
             <>

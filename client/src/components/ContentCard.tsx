@@ -39,8 +39,10 @@ export default function ContentCard({ content, onUnlock }: ContentCardProps) {
   const [isWalletModalOpen, setIsWalletModalOpen] = useState(false);
   const [isTipModalOpen, setIsTipModalOpen] = useState(false);
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
+  const [isUpvoteModalOpen, setIsUpvoteModalOpen] = useState(false);
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
   const [currentWallet, setCurrentWallet] = useState("");
+  const [privateKey, setPrivateKey] = useState("");
   const { toast } = useToast();
   
   const likeMutation = useMutation({
@@ -72,9 +74,19 @@ export default function ContentCard({ content, onUnlock }: ContentCardProps) {
     },
   });
   
+  // Legacy like mutation - will be replaced by upvote
   const handleLike = () => {
     if (currentWallet) {
       likeMutation.mutate(currentWallet);
+    } else {
+      setIsWalletModalOpen(true);
+    }
+  };
+  
+  // Handle upvote with real payment (80/20 split to creator/pool)
+  const handleUpvote = () => {
+    if (currentWallet && privateKey) {
+      setIsUpvoteModalOpen(true);
     } else {
       setIsWalletModalOpen(true);
     }
@@ -96,8 +108,9 @@ export default function ContentCard({ content, onUnlock }: ContentCardProps) {
     }
   };
   
-  const handleWalletVerified = (address: string) => {
+  const handleWalletVerified = (address: string, key?: string) => {
     setCurrentWallet(address);
+    if (key) setPrivateKey(key);
     setIsWalletModalOpen(false);
   };
   
@@ -216,11 +229,12 @@ export default function ContentCard({ content, onUnlock }: ContentCardProps) {
                 variant="ghost" 
                 size="sm" 
                 className="flex items-center text-gray-500 hover:text-primary p-0 h-auto"
-                onClick={handleLike}
-                disabled={likeMutation.isPending || isFlagged}
+                onClick={handleUpvote}
+                disabled={isFlagged}
               >
                 <Heart className="h-5 w-5 mr-1" />
                 <span className="text-sm">{content.likeCount}</span>
+                <span className="text-[10px] ml-1 text-primary font-semibold">(+XNO)</span>
               </Button>
               
               <Button
