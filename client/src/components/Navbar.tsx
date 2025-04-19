@@ -40,11 +40,6 @@ export default function Navbar() {
                     My Wallet
                   </div>
                 </Link>
-                <Link href="/admin/pool">
-                  <div className="inline-flex items-center px-3 py-1 border border-transparent text-sm font-medium rounded-md text-blue-600 bg-blue-50 hover:bg-blue-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 cursor-pointer">
-                    Admin
-                  </div>
-                </Link>
                 <span className="text-sm font-medium text-gray-500">Daily Pool:</span>
                 <span className="ml-2 px-3 py-1 rounded-full text-sm font-medium bg-[#F7B801] text-white">
                   {poolAmount ? `${poolAmount} XNO` : "Loading..."}

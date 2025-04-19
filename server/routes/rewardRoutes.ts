@@ -111,63 +111,63 @@ router.post('/process-upvote', async (req: Request, res: Response) => {
 });
 
 /**
- * Admin endpoint to distribute rewards to creators
- * In a production environment, this would be secured and/or automated
+ * Distribute rewards to creators - exported for scheduled distributions
  */
-router.post('/distribute-rewards', async (req: Request, res: Response) => {
+export async function distributeRewards() {
   try {
     // Check if pool wallet is configured
     if (!poolWallet.isConfigured()) {
-      return res.status(400).json({ 
-        error: 'Pool wallet not configured. Please set POOL_WALLET_ADDRESS and POOL_WALLET_PRIVATE_KEY environment variables.' 
-      });
+      log('Pool wallet not configured. Cannot distribute rewards.', 'rewardDistribution');
+      return {
+        success: false,
+        error: 'Pool wallet not configured'
+      };
     }
     
-    // Get the distribution list from the request or generate automatically
-    let { creators } = req.body;
+    // Auto-generate distribution based on content engagement
+    const allContent = await storage.getAllContent();
     
-    if (!creators || !Array.isArray(creators) || creators.length === 0) {
-      // Auto-generate distribution based on content engagement
-      const allContent = await storage.getAllContent();
-      
-      // Group content by wallet address
-      const walletContributions: Record<string, { contentCount: number, likeCount: number }> = {};
-      
-      for (const content of allContent) {
-        if (!walletContributions[content.walletAddress]) {
-          walletContributions[content.walletAddress] = { contentCount: 0, likeCount: 0 };
-        }
-        
-        // Count content
-        walletContributions[content.walletAddress].contentCount += 1;
-        
-        // Get likes for this content
-        const likes = await storage.getLikesByContent(content.id);
-        walletContributions[content.walletAddress].likeCount += likes.length;
+    // Group content by wallet address
+    const walletContributions: Record<string, { contentCount: number, likeCount: number }> = {};
+    
+    for (const content of allContent) {
+      if (!walletContributions[content.walletAddress]) {
+        walletContributions[content.walletAddress] = { contentCount: 0, likeCount: 0 };
       }
       
-      // Calculate distribution amounts
-      const availableDistribution = poolWallet.getAvailableDistribution();
+      // Count content
+      walletContributions[content.walletAddress].contentCount += 1;
       
-      // If no content or engagement, return early
-      if (Object.keys(walletContributions).length === 0) {
-        return res.status(400).json({ 
-          error: 'No content creators found for distribution' 
-        });
-      }
-      
-      // Calculate total contribution score (70% for content, 30% for likes)
-      let totalScore = 0;
-      const scores: Record<string, number> = {};
-      
-      for (const [wallet, stats] of Object.entries(walletContributions)) {
-        const score = (stats.contentCount * 0.7) + (stats.likeCount * 0.3);
-        scores[wallet] = score;
-        totalScore += score;
-      }
-      
-      // Distribute proportionally
-      creators = Object.entries(scores).map(([wallet, score]) => {
+      // Get likes for this content
+      const likes = await storage.getLikesByContent(content.id);
+      walletContributions[content.walletAddress].likeCount += likes.length;
+    }
+    
+    // Calculate distribution amounts
+    const availableDistribution = poolWallet.getAvailableDistribution();
+    
+    // If no content or engagement, return early
+    if (Object.keys(walletContributions).length === 0) {
+      log('No content creators found for distribution', 'rewardDistribution');
+      return {
+        success: false,
+        error: 'No content creators found for distribution'
+      };
+    }
+    
+    // Calculate total contribution score (70% for content, 30% for likes)
+    let totalScore = 0;
+    const scores: Record<string, number> = {};
+    
+    for (const [wallet, stats] of Object.entries(walletContributions)) {
+      const score = (stats.contentCount * 0.7) + (stats.likeCount * 0.3);
+      scores[wallet] = score;
+      totalScore += score;
+    }
+    
+    // Distribute proportionally
+    const creators = Object.entries(scores)
+      .map(([wallet, score]) => {
         const proportion = score / totalScore;
         const amount = availableDistribution * proportion;
         
@@ -179,30 +179,39 @@ router.post('/distribute-rewards', async (req: Request, res: Response) => {
           };
         }
         return null;
-      }).filter(Boolean);
-    }
+      })
+      .filter((item): item is { walletAddress: string; amount: number } => item !== null);
     
     // Validate creators format
     if (!creators || creators.length === 0) {
-      return res.status(400).json({ 
-        error: 'No valid creators found for distribution' 
-      });
+      log('No valid creators found for distribution', 'rewardDistribution');
+      return {
+        success: false,
+        error: 'No valid creators found for distribution'
+      };
     }
     
     // Process distribution
     const results = await poolWallet.distributeRewards(creators);
     
-    res.json({
+    const totalDistributed = results
+      .filter(r => r.success)
+      .reduce((sum, r) => sum + r.amount, 0);
+      
+    log(`Successfully distributed ${totalDistributed} XNO to ${results.filter(r => r.success).length} creators`, 'rewardDistribution');
+    
+    return {
       success: true,
       distributions: results,
-      totalDistributed: results
-        .filter(r => r.success)
-        .reduce((sum, r) => sum + r.amount, 0)
-    });
+      totalDistributed
+    };
   } catch (error: any) {
-    log(`Error distributing rewards: ${error.message}`, 'rewardRoutes');
-    res.status(500).json({ error: error.message });
+    log(`Error distributing rewards: ${error.message}`, 'rewardDistribution');
+    return {
+      success: false,
+      error: error.message
+    };
   }
-});
+}
 
 export default router;

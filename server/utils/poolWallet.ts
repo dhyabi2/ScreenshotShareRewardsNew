@@ -39,16 +39,23 @@ class PoolWallet {
   private lastUpdated: Date = new Date();
   
   constructor() {
-    // Initialize with environment variables or Replit secrets
-    this.poolAddress = process.env.POOL_WALLET_ADDRESS || '';
-    this.poolPrivateKey = process.env.POOL_WALLET_PRIVATE_KEY || '';
+    // Initialize with Replit secrets
+    this.poolAddress = process.env.PUBLIC_KEY || '';
+    this.poolPrivateKey = process.env.RPC_KEY || '';
     
     // Log initialization (without sensitive data)
     if (this.poolAddress) {
       log(`Pool wallet initialized with address: ${this.poolAddress}`, 'poolWallet');
     } else {
-      log('⚠️ Pool wallet not configured. Please run generate-pool-wallet.js and set POOL_WALLET_ADDRESS and POOL_WALLET_PRIVATE_KEY as Replit secrets.', 'poolWallet');
+      log('⚠️ Pool wallet not found in environment. The application requires PUBLIC_KEY and RPC_KEY to be set as Replit secrets.', 'poolWallet');
     }
+    
+    // Initialize pool settings with default values
+    this.updatePoolSettings({
+      uploadPoolPercentage: 70,
+      likePoolPercentage: 30,
+      dailyDistribution: 5
+    });
   }
 
   /**

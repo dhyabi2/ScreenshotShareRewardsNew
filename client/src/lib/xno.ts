@@ -3,7 +3,10 @@
 /**
  * Format XNO amount with appropriate decimal places
  */
-export const formatXNO = (amount: number): string => {
+export const formatXNO = (amount: number | undefined | null): string => {
+  if (amount === undefined || amount === null) {
+    return "0.00";
+  }
   return amount.toFixed(2);
 };
 
