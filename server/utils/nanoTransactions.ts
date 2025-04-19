@@ -67,8 +67,8 @@ class NanoTransactions {
           body: {
             action: 'work_generate',
             hash: hash,
-            // For opening blocks, use a much lower difficulty
-            difficulty: isOpenBlock ? 'fffffff8000000000000000000000000' : 'fffffff800000000'
+            // For opening blocks, use a different difficulty that meets threshold
+            difficulty: isOpenBlock ? 'fffffff800000000' : 'fffffff800000000'
           }
         },
         {
