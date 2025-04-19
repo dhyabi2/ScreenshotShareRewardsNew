@@ -233,6 +233,110 @@ export const api = {
     return response.json();
   },
   
+  // New client-side transaction endpoints
+  getAccountInfo: async (address: string): Promise<any> => {
+    const response = await fetch("/api/wallet/account-info", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ address })
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || "Failed to get account info");
+    }
+    
+    return response.json();
+  },
+  
+  generateWork: async (hash: string): Promise<{ work?: string; error?: string }> => {
+    const response = await fetch("/api/wallet/generate-work", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ hash })
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || "Failed to generate work");
+    }
+    
+    return response.json();
+  },
+  
+  processBlock: async (blockData: any): Promise<{ hash?: string; error?: string }> => {
+    const response = await fetch("/api/wallet/process-block", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(blockData)
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || "Failed to process block");
+    }
+    
+    return response.json();
+  },
+  
+  recordPayment: async (paymentData: {
+    fromWallet: string;
+    toWallet: string;
+    amount: string;
+    hash: string;
+    contentId?: number;
+    type: 'payment' | 'tip';
+  }): Promise<{ success: boolean; id?: number; error?: string }> => {
+    const response = await fetch("/api/payment/record", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(paymentData)
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || "Failed to record payment");
+    }
+    
+    return response.json();
+  },
+  
+  recordUpvote: async (upvoteData: {
+    fromWallet: string;
+    creatorWallet: string;
+    poolWallet: string;
+    contentId: number;
+    totalAmount: string;
+    creatorAmount: string;
+    poolAmount: string;
+    creatorTxHash?: string;
+    poolTxHash?: string;
+  }): Promise<{ success: boolean; error?: string }> => {
+    const response = await fetch("/api/rewards/record-upvote", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(upvoteData)
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || "Failed to record upvote");
+    }
+    
+    return response.json();
+  },
+  
+  getPoolWalletAddress: async (): Promise<{ address: string }> => {
+    const response = await fetch("/api/rewards/pool-address");
+    
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || "Failed to get pool wallet address");
+    }
+    
+    return response.json();
+  },
+  
   // Rewards endpoints
   getDailyPoolStats: async (): Promise<DailyPoolStats> => {
     const response = await fetch("/api/rewards/pool-stats");

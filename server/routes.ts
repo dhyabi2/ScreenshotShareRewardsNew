@@ -738,9 +738,206 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
+  // New client-side transaction endpoints
+  
+  // Generate work for a hash (no private key required)
+  app.post('/api/wallet/generate-work', async (req, res) => {
+    try {
+      const { hash } = req.body;
+      
+      if (!hash) {
+        return res.status(400).json({ 
+          error: "Missing required parameter: hash" 
+        });
+      }
+      
+      // Import the sendXno service
+      const { sendXnoService } = await import('./utils/sendXno');
+      
+      // Generate work for the hash
+      const workResult = await sendXnoService.generateWork(hash);
+      
+      return res.json(workResult);
+    } catch (error: any) {
+      console.error('Error generating work:', error);
+      res.status(500).json({ error: error.message || 'Failed to generate work' });
+    }
+  });
+  
+  // Process a pre-signed block (no private key required)
+  app.post('/api/wallet/process-block', async (req, res) => {
+    try {
+      const { block, subtype } = req.body;
+      
+      if (!block || !block.signature) {
+        return res.status(400).json({ 
+          error: "Missing required parameter: block with signature" 
+        });
+      }
+      
+      // Import the sendXno service
+      const { sendXnoService } = await import('./utils/sendXno');
+      
+      // Process the already signed block 
+      const response = await fetch(sendXnoService.getApiUrl(), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': sendXnoService.getRpcKey()
+        },
+        body: JSON.stringify({
+          action: 'process',
+          block: block,
+          subtype: subtype || 'send',
+          json_block: true
+        })
+      });
+      
+      const result = await response.json();
+      
+      if (result.hash) {
+        console.log(`Block processed successfully with hash: ${result.hash}`);
+        return res.json({ 
+          success: true, 
+          hash: result.hash 
+        });
+      } else {
+        console.error('Error processing block:', result.error);
+        return res.status(400).json({ 
+          success: false, 
+          error: result.error || 'Failed to process block' 
+        });
+      }
+    } catch (error: any) {
+      console.error('Error processing block:', error);
+      res.status(500).json({ error: error.message || 'Failed to process block' });
+    }
+  });
+  
+  // Record a payment without sending the private key
+  app.post('/api/payment/record', async (req, res) => {
+    try {
+      const { fromWallet, toWallet, amount, hash, contentId, type } = req.body;
+      
+      if (!fromWallet || !toWallet || !amount || !hash) {
+        return res.status(400).json({ 
+          error: "Missing required parameters: fromWallet, toWallet, amount, hash" 
+        });
+      }
+      
+      // Create payment record
+      const paymentData: InsertPayment = {
+        fromWallet,
+        toWallet,
+        amount: parseFloat(amount),
+        contentId: contentId || null,
+        type: type || 'payment',
+        status: 'completed',
+        createdAt: new Date()
+      };
+      
+      const payment = await storage.createPayment(paymentData);
+      
+      return res.json({
+        success: true,
+        id: payment.id,
+        message: `Successfully recorded ${amount} XNO payment`
+      });
+    } catch (error: any) {
+      console.error('Error recording payment:', error);
+      res.status(500).json({ error: error.message || 'Failed to record payment' });
+    }
+  });
+  
+  // Record an upvote without sending the private key
+  app.post('/api/rewards/record-upvote', async (req, res) => {
+    try {
+      const { 
+        fromWallet, creatorWallet, poolWallet, contentId, 
+        totalAmount, creatorAmount, poolAmount,
+        creatorTxHash, poolTxHash
+      } = req.body;
+      
+      if (!fromWallet || !creatorWallet || !contentId || !totalAmount) {
+        return res.status(400).json({ 
+          error: "Missing required parameters for upvote recording" 
+        });
+      }
+      
+      // Record the payment to creator
+      if (creatorTxHash) {
+        const creatorPayment: InsertPayment = {
+          fromWallet,
+          toWallet: creatorWallet,
+          amount: parseFloat(creatorAmount || totalAmount),
+          contentId,
+          type: 'payment',
+          status: 'completed',
+          createdAt: new Date()
+        };
+        await storage.createPayment(creatorPayment);
+      }
+      
+      // Record the payment to pool
+      if (poolTxHash && poolWallet) {
+        const poolPayment: InsertPayment = {
+          fromWallet,
+          toWallet: poolWallet,
+          amount: parseFloat(poolAmount || '0'),
+          contentId,
+          type: 'pool',
+          status: 'completed',
+          createdAt: new Date()
+        };
+        await storage.createPayment(poolPayment);
+      }
+      
+      // Create like entry
+      const like: InsertLike = {
+        contentId,
+        walletAddress: fromWallet,
+        isPaid: true,
+        createdAt: new Date()
+      };
+      
+      await storage.addLike(like);
+      
+      return res.json({
+        success: true,
+        message: `Successfully recorded upvote with 80/20 split`
+      });
+    } catch (error: any) {
+      console.error('Error recording upvote:', error);
+      res.status(500).json({ error: error.message || 'Failed to record upvote' });
+    }
+  });
+  
+  // Get pool wallet address
+  app.get('/api/rewards/pool-address', async (req, res) => {
+    try {
+      // Return the public pool address from environment variable
+      const poolAddress = process.env.PUBLIC_POOL_ADDRESS;
+      
+      if (!poolAddress) {
+        return res.status(500).json({ error: 'Pool wallet address not configured' });
+      }
+      
+      return res.json({
+        address: poolAddress
+      });
+    } catch (error: any) {
+      console.error('Error getting pool address:', error);
+      res.status(500).json({ error: error.message || 'Failed to get pool address' });
+    }
+  });
+  
+  // Deprecated: Will transition to client-side processing
   app.post('/api/wallet/send', async (req, res) => {
     try {
       const { fromAddress, privateKey, toAddress, amount } = req.body;
+      
+      // Return warning if this endpoint is used
+      console.warn('Deprecated endpoint used: /api/wallet/send - Should use client-side transaction processing');
       
       if (!fromAddress || !privateKey || !toAddress || !amount) {
         return res.status(400).json({ 
