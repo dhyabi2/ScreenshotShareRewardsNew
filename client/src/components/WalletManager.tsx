@@ -8,8 +8,10 @@ import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { api } from '@/lib/api';
 import { formatXNO, truncateAddress } from '@/lib/xno';
-import { Loader2, ArrowUpRight, ArrowDownLeft, Copy, ExternalLink, RefreshCw } from 'lucide-react';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Loader2, ArrowUpRight, ArrowDownLeft, Copy, ExternalLink, RefreshCw, AlertTriangle, Shield } from 'lucide-react';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+import { Checkbox } from '@/components/ui/checkbox';
 
 interface WalletManagerProps {
   walletAddress?: string;
@@ -167,8 +169,30 @@ export default function WalletManager({ walletAddress: initialWalletAddress, onW
     enabled: !!walletAddress && openReceiveDialog,
   });
   
+  // States for wallet creation confirmation
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+  const [acceptedTerms1, setAcceptedTerms1] = useState(false);
+  const [acceptedTerms2, setAcceptedTerms2] = useState(false);
+  
+  // Handle wallet creation with confirmation
+  const showWalletCreationDialog = () => {
+    setAcceptedTerms1(false);
+    setAcceptedTerms2(false);
+    setShowConfirmDialog(true);
+  };
+  
   const handleGenerateWallet = () => {
-    generateWalletMutation.mutate();
+    // Only proceed if both confirmations are checked
+    if (acceptedTerms1 && acceptedTerms2) {
+      setShowConfirmDialog(false);
+      generateWalletMutation.mutate();
+    } else {
+      toast({
+        title: "Confirmation Required",
+        description: "Please confirm both statements to continue.",
+        variant: "destructive",
+      });
+    }
   };
   
   const handleReceiveTransactions = () => {
@@ -256,7 +280,7 @@ export default function WalletManager({ walletAddress: initialWalletAddress, onW
         <CardContent>
           <p className="mb-4">Generate a new XNO wallet to unlock, tip, and receive rewards.</p>
           <Button 
-            onClick={handleGenerateWallet} 
+            onClick={showWalletCreationDialog} 
             disabled={generateWalletMutation.isPending}
             className="w-full"
           >
@@ -269,6 +293,70 @@ export default function WalletManager({ walletAddress: initialWalletAddress, onW
               'Generate New Wallet'
             )}
           </Button>
+          
+          {/* Wallet Creation Confirmation Dialog */}
+          <AlertDialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
+            <AlertDialogContent className="max-w-md">
+              <AlertDialogHeader>
+                <AlertDialogTitle className="flex items-center">
+                  <AlertTriangle className="h-5 w-5 text-amber-500 mr-2" />
+                  Important: Create New XNO Wallet
+                </AlertDialogTitle>
+                <AlertDialogDescription className="space-y-4">
+                  <div className="border border-amber-200 bg-amber-50 p-3 rounded-md text-amber-800 text-sm">
+                    <p className="font-semibold mb-2">Please read carefully before proceeding:</p>
+                    <ul className="list-disc pl-4 space-y-1">
+                      <li>Your private key is the <strong>only way</strong> to access your funds</li>
+                      <li>If you lose your private key, your funds will be <strong>permanently lost</strong></li>
+                      <li>No one can recover your wallet for you</li>
+                      <li>Your private key will be stored in your browser's localStorage</li>
+                      <li>Never share your private key with anyone</li>
+                    </ul>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <div className="flex items-start space-x-2">
+                      <Checkbox 
+                        id="terms1" 
+                        checked={acceptedTerms1}
+                        onCheckedChange={(checked) => setAcceptedTerms1(checked === true)}
+                        className="mt-1"
+                      />
+                      <Label htmlFor="terms1" className="font-normal text-sm">
+                        I understand that if I lose my private key, my funds will be permanently lost and cannot be recovered by anyone
+                      </Label>
+                    </div>
+                    
+                    <div className="flex items-start space-x-2">
+                      <Checkbox 
+                        id="terms2" 
+                        checked={acceptedTerms2}
+                        onCheckedChange={(checked) => setAcceptedTerms2(checked === true)}
+                        className="mt-1"
+                      />
+                      <Label htmlFor="terms2" className="font-normal text-sm">
+                        I understand that I am responsible for securing my private key and will create a backup in a safe location
+                      </Label>
+                    </div>
+                  </div>
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter className="flex-col sm:flex-row gap-2">
+                <AlertDialogCancel className="mt-0">Cancel</AlertDialogCancel>
+                <AlertDialogAction 
+                  disabled={!acceptedTerms1 || !acceptedTerms2}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    handleGenerateWallet();
+                  }}
+                  className="bg-amber-600 hover:bg-amber-700 focus:ring-amber-600"
+                >
+                  <Shield className="mr-2 h-4 w-4" />
+                  Create Wallet Securely
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </CardContent>
       </Card>
     );
