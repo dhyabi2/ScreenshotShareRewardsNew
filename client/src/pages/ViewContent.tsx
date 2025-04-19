@@ -244,7 +244,7 @@ export default function ViewContent() {
                   <Button 
                     variant="outline" 
                     size="sm" 
-                    onClick={() => window.open(`https://nanolooker.com/account/${content.walletAddress}`, "_blank")}
+                    onClick={() => window.open(`https://nanexplorer.com/nano/${content.walletAddress}`, "_blank")}
                   >
                     <ExternalLink className="h-4 w-4 mr-2" />
                     Verify Wallet

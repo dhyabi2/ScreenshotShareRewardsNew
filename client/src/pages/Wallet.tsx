@@ -659,7 +659,7 @@ export default function Wallet() {
                                   description: "In some cases, pending funds can only be received once a node accepts the work. You can still view your pending transactions on a Nano block explorer while we work on improving the receive functionality.",
                                 });
                                 
-                                window.open(`https://nanolooker.com/account/${walletAddress}`, '_blank');
+                                window.open(`https://nanexplorer.com/nano/${walletAddress}`, '_blank');
                               }}
                             >
                               View Pending on Explorer
@@ -697,7 +697,7 @@ export default function Wallet() {
                         <div className="flex flex-wrap gap-2">
                           <Button size="sm" variant="outline" asChild>
                             <a 
-                              href={`https://nanolooker.com/account/${walletAddress}`} 
+                              href={`https://nanexplorer.com/nano/${walletAddress}`} 
                               target="_blank" 
                               rel="noopener noreferrer"
                               className="flex items-center"
@@ -966,7 +966,7 @@ export default function Wallet() {
                                     asChild
                                   >
                                     <a
-                                      href={`https://nanolooker.com/block/${tx.hash}`}
+                                      href={`https://nanexplorer.com/nano/block/${tx.hash}`}
                                       target="_blank"
                                       rel="noopener noreferrer"
                                       title="View on Nano Explorer"

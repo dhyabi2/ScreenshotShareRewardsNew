@@ -328,7 +328,7 @@ export default function WalletManager({ walletAddress: initialWalletAddress, onW
                       <Button 
                         variant="ghost" 
                         size="icon" 
-                        onClick={() => window.open(`https://nanolooker.com/account/${walletAddress}`, '_blank')}
+                        onClick={() => window.open(`https://nanexplorer.com/nano/${walletAddress}`, '_blank')}
                       >
                         <ExternalLink className="h-4 w-4" />
                       </Button>
