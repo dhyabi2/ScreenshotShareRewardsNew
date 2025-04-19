@@ -53,6 +53,32 @@ class NanoTransactions {
    */
   async generateWork(hash: string, isOpenBlock = false): Promise<string> {
     try {
+      // Try to get the current difficulty threshold from the node first
+      let targetDifficulty = isOpenBlock ? '0000000000000000' : 'fffffff800000000';
+      
+      try {
+        const activeResponse = await fetch(this.apiUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': this.rpcKey,
+            'X-GPU-Key': this.gpuKey
+          },
+          body: JSON.stringify({
+            action: 'active_difficulty'
+          })
+        });
+        
+        const diffData = await activeResponse.json() as any;
+        if (!diffData.error && diffData.network_minimum) {
+          // Use the network minimum
+          targetDifficulty = diffData.network_minimum;
+          console.log(`Using current network minimum difficulty: ${targetDifficulty}`);
+        }
+      } catch (diffError) {
+        console.log('Error getting active difficulty, using fallback:', diffError);
+      }
+      
       // Opening blocks have different difficulty requirements in some node versions
       // Try with multiple work generation services to ensure compatibility
       const services = [
@@ -67,8 +93,8 @@ class NanoTransactions {
           body: {
             action: 'work_generate',
             hash: hash,
-            // For opening blocks, use a much lower difficulty that meets node's threshold
-            difficulty: isOpenBlock ? 'ff00000000000000' : 'fffffff800000000'
+            // For opening blocks, use the network difficulty or fallback to 0
+            difficulty: isOpenBlock ? targetDifficulty : 'fffffff800000000'
           }
         },
         {
@@ -96,8 +122,8 @@ class NanoTransactions {
           body: {
             action: 'work_generate',
             hash: hash,
-            // Set an even lower difficulty for fallback
-            difficulty: isOpenBlock ? 'ff00000000000000' : 'fffffe0000000000'
+            // No difficulty at all for opening blocks
+            difficulty: isOpenBlock ? '0000000000000000' : 'fffffe0000000000'
           }
         },
         {
@@ -242,6 +268,15 @@ class NanoTransactions {
           ? 'receive' // Receive block
           : 'send'; // Send block
       
+      // For open blocks, we need an even lower work threshold based on documentation
+      let openingThreshold = 'fffffff800000000'; // Standard
+      if (isOpeningBlock) {
+        // Try progressively lower thresholds
+        if (subtype === 'open') {
+          openingThreshold = 'fffffff800000000'; // Try standard first
+        }
+      }
+        
       // Retry with progressively more permissive approaches
       const attempts = [
         // Attempt 1: Standard process with json_block
@@ -275,7 +310,20 @@ class NanoTransactions {
             block: block
           }
         },
-        // Attempt 4: With different work thresholds for different operations
+        // Attempt 4: With very low work thresholds for opening blocks
+        {
+          name: "Minimal threshold process",
+          body: {
+            action: 'process',
+            json_block: 'true', 
+            subtype: subtype,
+            force: 'true',
+            // Use extremely low threshold for opening blocks
+            threshold: isOpeningBlock ? '0000000000000000' : 'fffffe0000000000',
+            block: block
+          }
+        },
+        // Attempt 5: With different work thresholds for different operations
         {
           name: "Adjusted work threshold process",
           body: {
