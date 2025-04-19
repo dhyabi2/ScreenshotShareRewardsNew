@@ -24,7 +24,7 @@ router.get('/pool-stats', async (req: Request, res: Response) => {
         likePoolPercentage: 30,
         dailyDistribution: 0.1,
         poolAddress: '',
-        error: 'Pool wallet not configured. Please set PUBLIC_KEY and RPC_KEY in Replit secrets.'
+        error: 'Pool wallet not configured. Please set PUBLIC_POOL_ADDRESS and POOL_PRIVATE_KEY in Replit secrets.'
       });
     }
     

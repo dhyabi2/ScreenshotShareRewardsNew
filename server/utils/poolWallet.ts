@@ -41,23 +41,23 @@ class PoolWallet {
   constructor() {
     log('Initializing pool wallet from Replit secrets...', 'poolWallet');
     
-    // Initialize with Replit secrets
-    const publicKey = process.env.PUBLIC_KEY || '';
-    const rpcKey = process.env.RPC_KEY || '';
+    // Initialize with dedicated pool wallet Replit secrets
+    const poolAddress = process.env.PUBLIC_POOL_ADDRESS || '';
+    const poolPrivateKey = process.env.POOL_PRIVATE_KEY || '';
     
     // Debug available environment variables (without showing actual values)
     const envKeys = Object.keys(process.env);
     log(`Available environment variables: ${envKeys.join(', ')}`, 'poolWallet');
     
     // Check if we have proper nano addresses (nano_...)
-    const isValidPublicKey = publicKey.startsWith('nano_') && publicKey.length > 60;
-    const isValidPrivateKey = rpcKey.length >= 64; // Check private key length
+    const isValidPoolAddress = poolAddress.startsWith('nano_') && poolAddress.length > 60;
+    const isValidPoolPrivateKey = poolPrivateKey.length >= 64; // Check private key length
     
     // Ensure the secrets are properly loaded from Replit
-    if (!isValidPublicKey || !isValidPrivateKey) {
-      log('⚠️ Pool wallet secrets not found or invalid. The application requires proper Nano wallet PUBLIC_KEY and RPC_KEY to be set as Replit secrets.', 'poolWallet');
-      log(`PUBLIC_KEY is valid format: ${isValidPublicKey}`, 'poolWallet');
-      log(`RPC_KEY is valid format: ${isValidPrivateKey}`, 'poolWallet');
+    if (!isValidPoolAddress || !isValidPoolPrivateKey) {
+      log('⚠️ Pool wallet secrets not found or invalid. The application requires PUBLIC_POOL_ADDRESS and POOL_PRIVATE_KEY to be set as Replit secrets.', 'poolWallet');
+      log(`PUBLIC_POOL_ADDRESS is valid format: ${isValidPoolAddress}`, 'poolWallet');
+      log(`POOL_PRIVATE_KEY is valid format: ${isValidPoolPrivateKey}`, 'poolWallet');
       
       // Try to handle the case by checking if we're in a development environment
       if (process.env.NODE_ENV === 'development') {
@@ -67,12 +67,12 @@ class PoolWallet {
         this.poolPrivateKey = '';
       } else {
         // In production, we must have these values
-        throw new Error('Missing or invalid Replit secrets: PUBLIC_KEY and RPC_KEY');
+        throw new Error('Missing or invalid Replit secrets: PUBLIC_POOL_ADDRESS and POOL_PRIVATE_KEY');
       }
     } else {
       // Set the values from Replit secrets
-      this.poolAddress = publicKey;
-      this.poolPrivateKey = rpcKey;
+      this.poolAddress = poolAddress;
+      this.poolPrivateKey = poolPrivateKey;
       log(`✅ Pool wallet successfully initialized with address: ${this.poolAddress}`, 'poolWallet');
     }
     
