@@ -29,9 +29,9 @@ export default function UploadForm() {
   const { toast } = useToast();
   const [walletAddress, setWalletAddress] = useState("");
 
-  // Get wallet address from localStorage
+  // Get wallet address from localStorage using the correct key
   useEffect(() => {
-    const savedWallet = localStorage.getItem('walletAddress');
+    const savedWallet = localStorage.getItem('xno_wallet_address');
     if (savedWallet) {
       setWalletAddress(savedWallet);
     }

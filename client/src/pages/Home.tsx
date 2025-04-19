@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import InfoBanner from "@/components/InfoBanner";
 import UploadForm from "@/components/UploadForm";
@@ -7,10 +7,40 @@ import ContentGallery from "@/components/ContentGallery";
 import { api } from "@/lib/api";
 
 export default function Home() {
-  const [userWallet, setUserWallet] = useState<string | undefined>(undefined);
+  const [userWallet, setUserWallet] = useState<string | undefined>(() => {
+    // Get wallet address from localStorage using the correct key
+    return localStorage.getItem('xno_wallet_address') || undefined;
+  });
+  
+  // Update wallet address when localStorage changes
+  useEffect(() => {
+    const checkWallet = () => {
+      const storedWallet = localStorage.getItem('xno_wallet_address');
+      if (storedWallet && storedWallet !== userWallet) {
+        setUserWallet(storedWallet);
+      } else if (!storedWallet && userWallet) {
+        setUserWallet(undefined);
+      }
+    };
+    
+    // Check on mount
+    checkWallet();
+    
+    // Listen for storage changes
+    window.addEventListener('storage', checkWallet);
+    
+    // Check periodically (every 5 seconds)
+    const interval = setInterval(checkWallet, 5000);
+    
+    return () => {
+      window.removeEventListener('storage', checkWallet);
+      clearInterval(interval);
+    };
+  }, [userWallet]);
   
   const handleFormSubmit = (wallet: string) => {
     setUserWallet(wallet);
+    localStorage.setItem('xno_wallet_address', wallet);
   };
   
   // Pre-fetch daily pool stats to use across components
