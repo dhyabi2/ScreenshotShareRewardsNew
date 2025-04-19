@@ -623,14 +623,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Amount must be a positive number" });
       }
       
-      const result = await walletService.sendTransaction(fromAddress, privateKey, toAddress, amountFloat);
+      // Import the sendXno service
+      const { sendXnoService } = await import('./utils/sendXno');
+      
+      console.log(`Sending ${amountFloat} XNO from ${fromAddress} to ${toAddress}`);
+      
+      // Use our enhanced send service
+      const result = await sendXnoService.sendTransaction(
+        fromAddress, 
+        privateKey, 
+        toAddress, 
+        amount.toString()
+      );
       
       if (!result.success) {
+        console.error('Error sending transaction:', result.error);
         return res.status(400).json({ error: result.error || "Transaction failed" });
       }
       
+      console.log(`Transaction successful with hash: ${result.hash}`);
       res.json({ success: true, hash: result.hash });
     } catch (error: any) {
+      console.error('Error in send transaction:', error);
       res.status(500).json({ error: error.message });
     }
   });
