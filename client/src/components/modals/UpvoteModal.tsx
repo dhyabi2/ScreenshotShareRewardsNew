@@ -41,18 +41,19 @@ export default function UpvoteModal({
   const creatorAmount = amount * 0.8;
   const poolAmount = amount * 0.2;
   
+  // Use client-side processing for upvotes (80/20 split between creator and pool)
   const upvoteMutation = useMutation({
-    mutationFn: () => api.processUpvote(
+    mutationFn: () => clientXnoService.processUpvote(
       walletAddress,
       privateKey,
       content.walletAddress,
       content.id,
-      amount
+      amount.toString() // Convert to string to match the expected parameter type
     ),
     onSuccess: (data) => {
       toast({
-        title: "Upvote successful",
-        description: `Your payment of ${amount} XNO was processed successfully!`,
+        title: "Upvote successful!",
+        description: `Your payment of ${amount} XNO was processed with ${data.creatorAmount} XNO to creator and ${data.poolAmount} XNO to reward pool.`,
       });
       
       // Invalidate relevant queries to refresh data
@@ -75,6 +76,14 @@ export default function UpvoteModal({
   
   const handleUpvote = () => {
     setIsProcessing(true);
+    
+    // Show security message
+    toast({
+      title: "Processing transaction securely",
+      description: "Your private key will be processed locally and never sent to the server."
+    });
+    
+    // Process the upvote client-side
     upvoteMutation.mutate();
   };
   
@@ -142,6 +151,14 @@ export default function UpvoteModal({
             <div className="p-3 flex justify-between items-center">
               <span className="text-sm">Reward pool (20%)</span>
               <span className="font-medium">{formatXNO(poolAmount)} XNO</span>
+            </div>
+          </div>
+          
+          <div className="flex items-center gap-1.5 bg-blue-50 border border-blue-200 rounded-md p-3 text-xs text-blue-800">
+            <Shield className="h-4 w-4 text-blue-500 flex-shrink-0" />
+            <div>
+              <p className="font-medium">Enhanced security:</p>
+              <p>All transactions are processed client-side. Your private key never leaves your browser.</p>
             </div>
           </div>
           

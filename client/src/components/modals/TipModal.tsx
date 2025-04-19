@@ -16,7 +16,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Loader2, DollarSign } from "lucide-react";
+import { Loader2, DollarSign, Shield } from "lucide-react";
 
 interface TipModalProps {
   isOpen: boolean;
@@ -217,6 +217,14 @@ export default function TipModal({
               ) : null}
             </div>
           )}
+          
+          <div className="flex items-center gap-1.5 bg-blue-50 border border-blue-200 rounded-md p-3 mt-4 text-xs text-blue-800">
+            <Shield className="h-4 w-4 text-blue-500 flex-shrink-0" />
+            <div>
+              <p className="font-medium">Enhanced security:</p>
+              <p>All transactions are processed client-side. Your private key never leaves your browser.</p>
+            </div>
+          </div>
         </div>
         
         <DialogFooter className="flex flex-col gap-2">
