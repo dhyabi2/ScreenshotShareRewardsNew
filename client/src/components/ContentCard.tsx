@@ -202,10 +202,8 @@ export default function ContentCard({ content, onUnlock }: ContentCardProps) {
         
         <div className="p-3">
           <div className="flex justify-between items-start">
-            <Link href={`/content/${content.id}`}>
-              <a className="font-medium text-sm truncate hover:text-primary transition-colors">
-                {content.title}
-              </a>
+            <Link href={`/content/${content.id}`} className="font-medium text-sm truncate hover:text-primary transition-colors">
+              {content.title}
             </Link>
             <div className="bg-gradient-to-r from-[#F7B801] to-[#F59E0B] text-white text-xs px-2 py-0.5 rounded-full">
               +{(Math.random() * 0.5).toFixed(2)} XNO

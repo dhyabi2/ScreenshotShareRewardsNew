@@ -4,6 +4,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Content } from "@/types";
 import { api } from "@/lib/api";
 import { generatePaymentUrl, truncateAddress } from "@/lib/xno";
+import { useWallet } from "@/contexts/WalletContext";
 import {
   Dialog,
   DialogContent,
@@ -20,26 +21,30 @@ interface TipModalProps {
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
   content: Content;
-  senderWallet: string;
+  senderWallet?: string; // Make this optional since we'll use the global wallet context
 }
 
 export default function TipModal({
   isOpen,
   onOpenChange,
   content,
-  senderWallet,
+  senderWallet, // We'll now use this as a fallback only
 }: TipModalProps) {
   const [tipAmount, setTipAmount] = useState("0.01");
   const [isProcessing, setIsProcessing] = useState(false);
   const { toast } = useToast();
+  const { walletAddress, isConnected } = useWallet();
   
-  // If no sender wallet is provided, we'll still show the tip dialog
-  // but display a notice that wallet verification will be needed
+  // Use the global wallet context if available, otherwise fall back to the provided senderWallet
+  const activeWallet = isConnected && walletAddress ? walletAddress : senderWallet;
+  
+  // If no wallet is connected, we'll still show the tip dialog
+  // but display a notice that wallet verification won't be available
   
   const checkPaymentMutation = useMutation({
     mutationFn: () => {
       return api.checkPayment({
-        from: senderWallet,
+        from: activeWallet,
         to: content.walletAddress,
         amount: parseFloat(tipAmount),
         contentId: content.id
@@ -90,8 +95,8 @@ export default function TipModal({
     
     window.open(paymentUrl, "_blank");
     
-    // Only attempt to verify payment if we have a sender wallet
-    if (senderWallet) {
+    // Only attempt to verify payment if we have a wallet address
+    if (activeWallet) {
       setIsProcessing(true);
       
       // Check for payment after 5 seconds
@@ -137,7 +142,7 @@ export default function TipModal({
             </div>
           </div>
           
-          {!senderWallet && (
+          {!activeWallet && (
             <div className="mt-4 p-2 bg-amber-50 border border-amber-200 rounded-md text-amber-800 text-sm">
               <p>No wallet connected. Your tip will still be processed, but payment verification won't be available.</p>
             </div>
