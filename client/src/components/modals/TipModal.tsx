@@ -3,18 +3,16 @@ import { useMutation } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { Content } from "@/types";
 import { api } from "@/lib/api";
-import { truncateAddress, generatePaymentUrl } from "@/lib/xno";
+import { generatePaymentUrl } from "@/lib/xno";
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Loader2, DollarSign } from "lucide-react";
 
 interface TipModalProps {
@@ -30,7 +28,7 @@ export default function TipModal({
   content,
   senderWallet,
 }: TipModalProps) {
-  const [tipAmount, setTipAmount] = useState("0.05");
+  const [tipAmount, setTipAmount] = useState("0.01");
   const [isProcessing, setIsProcessing] = useState(false);
   const { toast } = useToast();
   
@@ -97,35 +95,17 @@ export default function TipModal({
   
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !isProcessing && onOpenChange(open)}>
-      <DialogContent>
+      <DialogContent className="sm:max-w-[400px]">
         <DialogHeader>
-          <DialogTitle>Send XNO Tip</DialogTitle>
-          <DialogDescription>
-            Send a tip directly to the content creator's wallet.
-          </DialogDescription>
+          <DialogTitle>Tip Creator</DialogTitle>
         </DialogHeader>
         
-        <div className="flex items-center p-3 bg-gray-100 rounded-lg mb-4">
-          <div className="w-12 h-12 rounded-md bg-gray-300 overflow-hidden mr-3">
-            <img 
-              src={content.blurredUrl} 
-              alt={content.title} 
-              className="w-full h-full object-cover"
-            />
-          </div>
-          <div>
-            <h4 className="font-medium text-sm">{content.title}</h4>
-            <p className="text-xs text-gray-500 font-mono">{truncateAddress(content.walletAddress)}</p>
-          </div>
-        </div>
-        
-        <div className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="tip-amount">Tip Amount (XNO)</Label>
-            <div className="relative">
+        <div className="py-2">
+          <div className="flex items-center">
+            <div className="relative w-full">
               <Input
                 id="tip-amount"
-                className="pl-12"
+                className="pl-10 text-lg"
                 type="number"
                 min="0.001"
                 step="0.01"
@@ -134,34 +114,17 @@ export default function TipModal({
                 disabled={isProcessing}
               />
               <div className="absolute inset-y-0 left-0 flex items-center pl-3">
-                <span className="text-gray-500 sm:text-sm font-medium">XNO</span>
+                <span className="text-gray-500 font-medium">XNO</span>
               </div>
             </div>
-          </div>
-          
-          <div className="space-y-2">
-            <Label htmlFor="from-wallet">Your Wallet Address</Label>
-            <Input
-              id="from-wallet"
-              className="font-mono text-xs"
-              value={senderWallet}
-              disabled
-            />
           </div>
         </div>
         
         <DialogFooter>
           <Button
-            variant="outline"
-            onClick={() => onOpenChange(false)}
-            disabled={isProcessing}
-          >
-            Cancel
-          </Button>
-          <Button
             onClick={handleSendTip}
             disabled={isProcessing}
-            className="flex items-center bg-[#F7B801] hover:bg-[#F7B801]/90 text-white"
+            className="w-full flex items-center justify-center bg-[#F7B801] hover:bg-[#F7B801]/90 text-white"
           >
             {isProcessing ? (
               <>
