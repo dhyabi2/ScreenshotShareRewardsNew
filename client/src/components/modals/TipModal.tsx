@@ -3,10 +3,11 @@ import { useMutation } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { Content } from "@/types";
 import { api } from "@/lib/api";
-import { generatePaymentUrl } from "@/lib/xno";
+import { generatePaymentUrl, truncateAddress } from "@/lib/xno";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -31,6 +32,9 @@ export default function TipModal({
   const [tipAmount, setTipAmount] = useState("0.01");
   const [isProcessing, setIsProcessing] = useState(false);
   const { toast } = useToast();
+  
+  // If no sender wallet is provided, we'll still show the tip dialog
+  // but display a notice that wallet verification will be needed
   
   const checkPaymentMutation = useMutation({
     mutationFn: () => {
@@ -85,12 +89,23 @@ export default function TipModal({
     );
     
     window.open(paymentUrl, "_blank");
-    setIsProcessing(true);
     
-    // Check for payment after 5 seconds
-    setTimeout(() => {
-      checkPaymentMutation.mutate();
-    }, 5000);
+    // Only attempt to verify payment if we have a sender wallet
+    if (senderWallet) {
+      setIsProcessing(true);
+      
+      // Check for payment after 5 seconds
+      setTimeout(() => {
+        checkPaymentMutation.mutate();
+      }, 5000);
+    } else {
+      // No wallet to verify payment with, just close the dialog
+      toast({
+        title: "Tip sent",
+        description: "Thank you for your tip! (No wallet verification available)",
+      });
+      onOpenChange(false);
+    }
   };
   
   return (
@@ -98,6 +113,9 @@ export default function TipModal({
       <DialogContent className="sm:max-w-[400px]">
         <DialogHeader>
           <DialogTitle>Tip Creator</DialogTitle>
+          <DialogDescription>
+            Tip {truncateAddress(content.walletAddress)} with XNO
+          </DialogDescription>
         </DialogHeader>
         
         <div className="py-2">
@@ -118,6 +136,12 @@ export default function TipModal({
               </div>
             </div>
           </div>
+          
+          {!senderWallet && (
+            <div className="mt-4 p-2 bg-amber-50 border border-amber-200 rounded-md text-amber-800 text-sm">
+              <p>No wallet connected. Your tip will still be processed, but payment verification won't be available.</p>
+            </div>
+          )}
         </div>
         
         <DialogFooter>

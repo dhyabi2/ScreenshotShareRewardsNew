@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link } from "wouter";
 import { useMutation } from "@tanstack/react-query";
 import { Heart, DollarSign, Share2, Flag, ThumbsUp } from "lucide-react";
@@ -44,6 +44,17 @@ export default function ContentCard({ content, onUnlock }: ContentCardProps) {
   const [currentWallet, setCurrentWallet] = useState("");
   const [privateKey, setPrivateKey] = useState("");
   const { toast } = useToast();
+  
+  // Automatically load wallet from localStorage on component mount
+  useEffect(() => {
+    const savedWallet = localStorage.getItem('xno_wallet');
+    const savedKey = localStorage.getItem('xno_private_key');
+    
+    if (savedWallet) {
+      setCurrentWallet(savedWallet);
+      if (savedKey) setPrivateKey(savedKey);
+    }
+  }, []);
   
   const likeMutation = useMutation({
     mutationFn: (walletAddress: string) => api.likeContent(content.id, walletAddress),
@@ -93,11 +104,19 @@ export default function ContentCard({ content, onUnlock }: ContentCardProps) {
   };
   
   const handleTip = () => {
-    if (currentWallet) {
-      setIsTipModalOpen(true);
-    } else {
-      setIsWalletModalOpen(true);
+    // Get wallet from localStorage if not already set
+    if (!currentWallet) {
+      const savedWallet = localStorage.getItem('xno_wallet');
+      if (savedWallet) {
+        setCurrentWallet(savedWallet);
+        const savedKey = localStorage.getItem('xno_private_key');
+        if (savedKey) setPrivateKey(savedKey);
+      }
     }
+    
+    // Open tip modal regardless of wallet state - this simplifies the user flow
+    // The TipModal component is already simplified with default 0.01 XNO amount
+    setIsTipModalOpen(true);
   };
   
   const handleUnlock = () => {
