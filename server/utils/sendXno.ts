@@ -287,7 +287,8 @@ class SendXnoService {
    * Check if a string is a valid Nano address
    */
   isValidAddress(address: string): boolean {
-    return nanocurrency.checkAddress(address);
+    // Using the tools.validateAddress method from nanocurrency library
+    return nanocurrency.tools.validateAddress(address);
   }
 }
 

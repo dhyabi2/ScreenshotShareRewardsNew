@@ -12,7 +12,8 @@ export function isValidXNOAddress(address: string): boolean {
   
   try {
     // Use the nanocurrency library's built-in address validator
-    return nanocurrency.checkAddress(address);
+    // The library doesn't have a checkAddress function, so we use tools.validateAddress
+    return nanocurrency.tools.validateAddress(address);
   } catch (error) {
     // If there's an error in the validation process, fall back to regex validation
     return fallbackValidateAddress(address);

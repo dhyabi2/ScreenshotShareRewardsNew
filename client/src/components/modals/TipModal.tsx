@@ -1,9 +1,9 @@
-import { useState } from "react";
-import { useMutation } from "@tanstack/react-query";
+import { useState, useEffect } from "react";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { Content } from "@/types";
 import { api } from "@/lib/api";
-import { truncateAddress } from "@/lib/xno";
+import { truncateAddress, formatXNO } from "@/lib/xno";
 import { useWallet } from "@/contexts/WalletContext";
 import {
   Dialog,
@@ -30,13 +30,21 @@ export default function TipModal({
   content,
   senderWallet, // We'll now use this as a fallback only
 }: TipModalProps) {
-  const [tipAmount, setTipAmount] = useState("0.01");
+  const [tipAmount, setTipAmount] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
   const { toast } = useToast();
   const { walletAddress, isConnected, privateKey } = useWallet();
   
   // Use the global wallet context if available, otherwise fall back to the provided senderWallet
   const activeWallet = isConnected && walletAddress ? walletAddress : senderWallet;
+  
+  // Fetch wallet balance
+  const { data: walletInfo, isLoading: isLoadingWallet } = useQuery({
+    queryKey: ['wallet', 'info', activeWallet],
+    queryFn: () => api.getWalletInfo(activeWallet || ''),
+    enabled: !!activeWallet,
+    refetchInterval: 10000, // Refresh every 10 seconds to get updated balance
+  });
   
   // Send tip mutation - uses real XNO transactions
   const sendTipMutation = useMutation({
@@ -113,6 +121,16 @@ export default function TipModal({
       return;
     }
     
+    // Check if we have sufficient balance
+    if (walletInfo && parseFloat(tipAmount) > walletInfo.balance) {
+      toast({
+        title: "Insufficient balance",
+        description: `Your wallet balance (${formatXNO(walletInfo.balance)} XNO) is less than the tip amount.`,
+        variant: "destructive",
+      });
+      return;
+    }
+    
     setIsProcessing(true);
     
     // If we have both wallet address and private key, use real XNO transaction
@@ -178,6 +196,11 @@ export default function TipModal({
           {activeWallet && privateKey && (
             <div className="mt-4 p-2 bg-green-50 border border-green-200 rounded-md text-green-800 text-sm">
               <p>Ready to send tip from <strong>{truncateAddress(activeWallet)}</strong></p>
+              {isLoadingWallet ? (
+                <p className="mt-1">Loading wallet balance...</p>
+              ) : walletInfo ? (
+                <p className="mt-1">Available balance: <strong>{formatXNO(walletInfo.balance)} XNO</strong></p>
+              ) : null}
             </div>
           )}
         </div>
