@@ -91,14 +91,14 @@ class XNOService {
               // Account not found or has no opened blocks
               console.log('Account not found or has no opened blocks:', data.error);
               
-              // Mark as invalid if account doesn't exist or has bad format
-              const isInvalid = data.error?.includes('Account not found') || 
-                               data.error?.includes('Bad account');
+              // Only mark as invalid if it has a bad format, but allow new accounts
+              // that don't have any blocks yet - they're still valid addresses
+              const isInvalid = data.error?.includes('Bad account');
               
               return {
                 address,
                 balance: 0,
-                valid: !isInvalid
+                valid: !isInvalid // Consider "Account not found" valid since it's just a new account
               };
             }
           } else {
