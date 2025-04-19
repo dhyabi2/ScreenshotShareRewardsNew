@@ -604,7 +604,7 @@ export default function Wallet() {
                                     walletAddress, 
                                     privateKey, 
                                     { 
-                                      workThreshold: isNewAccount ? 'ff00000000000000' : 'ffff000000000000',
+                                      workThreshold: isNewAccount ? 'ff00000000000000' : 'fffffe0000000000',
                                       maxRetries: 5,
                                       debug: true
                                     }

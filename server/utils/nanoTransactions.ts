@@ -67,8 +67,8 @@ class NanoTransactions {
           body: {
             action: 'work_generate',
             hash: hash,
-            // For opening blocks, use a different difficulty that meets threshold
-            difficulty: isOpenBlock ? 'fffffff800000000' : 'fffffff800000000'
+            // For opening blocks, use a much lower difficulty that meets node's threshold
+            difficulty: isOpenBlock ? 'ff00000000000000' : 'fffffff800000000'
           }
         },
         {
@@ -394,8 +394,16 @@ class NanoTransactions {
       return { success: false, error: 'Invalid wallet address format' };
     }
 
+    // Verify the private key format
     if (!nanocurrency.checkKey(privateKey)) {
-      return { success: false, error: 'Invalid private key' };
+      console.log("Private key validation failed with nanocurrency.checkKey");
+      
+      // Additional validation for private key format
+      if (!/^[0-9a-f]{64}$/i.test(privateKey)) {
+        return { success: false, error: 'Invalid private key format: must be a 64-character hex string' };
+      }
+      
+      return { success: false, error: 'Invalid private key - failed validation with nanocurrency library' };
     }
 
     try {
