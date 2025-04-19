@@ -4,7 +4,7 @@
  * The address and private key should be saved as Replit secrets
  */
 
-import { NanoWalletSeed, NanoAccount, deriveSecretKey, deriveAddress } from 'nanocurrency-web';
+import { tools } from 'nanocurrency-web';
 import { nanoTransactions } from './nanoTransactions';
 import { log } from '../vite';
 
@@ -13,18 +13,16 @@ import { log } from '../vite';
  */
 async function generatePoolWallet() {
   try {
-    // Generate a new random seed
-    const seed = NanoWalletSeed.random();
-    const seedBytes = seed.seed;
-    const seedHex = seed.seedHex;
+    // Generate a new random seed (64 hex characters)
+    const seed = tools.createSeed();
     
     // Derive index 0 account from seed
-    const privateKey = deriveSecretKey(seedHex, 0);
-    const publicAddress = deriveAddress(privateKey, { useNanoPrefix: true });
+    const privateKey = tools.seedToPrivateKey(seed, 0);
+    const publicAddress = tools.privateKeyToAddress(privateKey);
     
     // Output wallet details (in a real scenario, these would be saved securely)
     console.log('\n====== POOL WALLET DETAILS ======');
-    console.log(`Seed (keep this secure!): ${seedHex}`);
+    console.log(`Seed (keep this secure!): ${seed}`);
     console.log(`Private Key: ${privateKey}`);
     console.log(`Public Address: ${publicAddress}`);
     console.log('==================================\n');
@@ -32,7 +30,7 @@ async function generatePoolWallet() {
     console.log('Add these values to your Replit secrets:');
     console.log('1. POOL_WALLET_ADDRESS = ' + publicAddress);
     console.log('2. POOL_WALLET_PRIVATE_KEY = ' + privateKey);
-    console.log('3. POOL_WALLET_SEED = ' + seedHex + ' (optional, for recovery)');
+    console.log('3. POOL_WALLET_SEED = ' + seed + ' (optional, for recovery)');
     
     // Validate the wallet
     console.log('\nValidating wallet...');
@@ -51,7 +49,7 @@ async function generatePoolWallet() {
     }
     
     return {
-      seedHex,
+      seed,
       privateKey,
       publicAddress
     };

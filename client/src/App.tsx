@@ -7,6 +7,7 @@ import NotFound from "@/pages/not-found";
 import Home from "@/pages/Home";
 import ViewContent from "@/pages/ViewContent";
 import Wallet from "@/pages/Wallet";
+import AdminPool from "@/pages/AdminPool";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 
@@ -19,6 +20,7 @@ function Router() {
           <Route path="/" component={Home} />
           <Route path="/content/:id" component={ViewContent} />
           <Route path="/wallet" component={Wallet} />
+          <Route path="/admin/pool" component={AdminPool} />
           <Route component={NotFound} />
         </Switch>
       </div>

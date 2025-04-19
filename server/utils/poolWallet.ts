@@ -39,7 +39,7 @@ class PoolWallet {
   private lastUpdated: Date = new Date();
   
   constructor() {
-    // Initialize with environment variables
+    // Initialize with environment variables or Replit secrets
     this.poolAddress = process.env.POOL_WALLET_ADDRESS || '';
     this.poolPrivateKey = process.env.POOL_WALLET_PRIVATE_KEY || '';
     
@@ -47,7 +47,7 @@ class PoolWallet {
     if (this.poolAddress) {
       log(`Pool wallet initialized with address: ${this.poolAddress}`, 'poolWallet');
     } else {
-      log('Pool wallet not configured. Please set POOL_WALLET_ADDRESS and POOL_WALLET_PRIVATE_KEY in environment variables.', 'poolWallet');
+      log('⚠️ Pool wallet not configured. Please run generate-pool-wallet.js and set POOL_WALLET_ADDRESS and POOL_WALLET_PRIVATE_KEY as Replit secrets.', 'poolWallet');
     }
   }
 
