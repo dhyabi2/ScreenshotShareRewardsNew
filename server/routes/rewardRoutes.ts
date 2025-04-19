@@ -15,15 +15,16 @@ const router = express.Router();
  */
 router.get('/pool-stats', async (req: Request, res: Response) => {
   try {
-    // Check if pool wallet is configured
+    // Always use real blockchain data, no mocks
     if (!poolWallet.isConfigured()) {
-      // For development/demo purposes only - return mock data if not configured
+      // If not configured, return zeros but with error flag
       return res.json({
-        totalPool: 10,
+        totalPool: 0,
         uploadPoolPercentage: 70,
         likePoolPercentage: 30,
         dailyDistribution: 0.1,
         poolAddress: '',
+        error: 'Pool wallet not configured. Please set PUBLIC_KEY and RPC_KEY in Replit secrets.'
       });
     }
     
@@ -35,7 +36,14 @@ router.get('/pool-stats', async (req: Request, res: Response) => {
     });
   } catch (error: any) {
     log(`Error getting pool stats: ${error.message}`, 'rewardRoutes');
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ 
+      error: error.message,
+      totalPool: 0,
+      uploadPoolPercentage: 70,
+      likePoolPercentage: 30,
+      dailyDistribution: 0.1,
+      poolAddress: poolWallet.getPoolAddress() || ''
+    });
   }
 });
 

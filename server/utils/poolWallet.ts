@@ -28,7 +28,7 @@ class PoolWallet {
   
   // Default distribution settings
   private readonly defaultStats: PoolStats = {
-    totalPool: 10,              // 10 XNO initial pool
+    totalPool: 0,               // 0 XNO initial pool (real balance from blockchain)
     uploadPoolPercentage: 70,   // 70% for content uploads 
     likePoolPercentage: 30,     // 30% for content likes
     dailyDistribution: 0.1      // 0.1 XNO distributed daily
