@@ -738,6 +738,9 @@ class NanoTransactions {
     // Normalize and validate the private key format 
     const normalizedKey = privateKey.trim().toLowerCase();
     
+    console.log(`Creating send block from ${fromAddress} to ${toAddress} for amount ${sendAmount}`);
+    console.log(`Account info previous block: ${accountInfo.frontier || 'none'}`);
+    
     // Add detailed logging for private key validation
     console.log(`Validating private key for send (first 4 chars): ${normalizedKey.substring(0, 4)}...`);
     
@@ -759,36 +762,48 @@ class NanoTransactions {
     privateKey = normalizedKey;
 
     try {
+      // Format and validate the amount
+      const formattedAmount = sendAmount.toString();
+      const rawAmount = this.convertToRaw(formattedAmount);
+      console.log(`Sending amount: ${formattedAmount} XNO (${rawAmount} raw)`);
+      
       // Calculate new balance by subtracting from existing balance
       const currentBalance = accountInfo.balance || '0';
+      console.log(`Current balance: ${currentBalance} raw`);
       
-      if (BigInt(currentBalance) < BigInt(sendAmount)) {
+      // Ensure we're working with raw values (smallest unit)
+      if (BigInt(currentBalance) < BigInt(rawAmount)) {
         return { success: false, error: 'Insufficient balance' };
       }
       
-      const newBalance = (BigInt(currentBalance) - BigInt(sendAmount)).toString();
+      const newBalance = (BigInt(currentBalance) - BigInt(rawAmount)).toString();
+      console.log(`New balance after send: ${newBalance} raw`);
       
       // Use existing representative or default if not found
-      const representative = accountInfo.representative || fromAddress;
+      const representative = accountInfo.representative || 'nano_3rropjiqfxpmrrkooej4qtmm1pueu36f9ghinpho4esfdor8785a455d16nf';
       
       // Generate work for the previous block (frontier)
-      console.log('Generating work for send block...');
-      const work = await this.generateWork(accountInfo.frontier);
+      console.log('Generating work for send block with GPU-KEY authentication...');
+      const work = await this.generateWork(accountInfo.frontier, false, '8000000000000000');
+      console.log(`Generated work: ${work}`);
       
       // For send blocks, the link is the public key of the destination account
       // Use nanocurrency-web library to properly convert address to public key
-      const publicKey = nanocurrencyWeb.tools.addressToPublicKey(toAddress);
+      const destinationPublicKey = nanocurrencyWeb.tools.addressToPublicKey(toAddress);
+      console.log(`Destination public key: ${destinationPublicKey}`);
       
-      // Create a state block
+      // Create a state block according to Nano RPC protocol
       const block: BlockData = {
         type: 'state',
         account: fromAddress,
         previous: accountInfo.frontier,
         representative: representative,
         balance: newBalance,
-        link: publicKey,
+        link: destinationPublicKey,
         work: work
       };
+      
+      console.log('Block created:', JSON.stringify(block, null, 2));
       
       // Convert block to the format expected by nanocurrency.js
       const blockForHash = {
@@ -799,8 +814,10 @@ class NanoTransactions {
         link: block.link
       };
       
-      // Create the hash
+      // Create the hash and sign it
       const blockHash = nanocurrency.hashBlock(blockForHash);
+      console.log(`Block hash: ${blockHash}`);
+      
       block.signature = nanocurrency.signBlock({
         hash: blockHash,
         secretKey: privateKey
@@ -808,10 +825,26 @@ class NanoTransactions {
       
       console.log('Created and signed send block with hash:', blockHash);
       
-      // Process the block
+      // Try direct RPC process_block method first
+      console.log('Attempting to process send block with different methods...');
       const processResult = await this.processBlock(block);
       
       if (processResult.error) {
+        console.log(`Initial processing failed: ${processResult.error}`);
+        
+        // Try alternative block processing as a fallback
+        console.log('Trying alternative block processing...');
+        
+        // Try the send RPC command directly
+        const sendResult = await this.sendDirectRPC(fromAddress, toAddress, rawAmount, privateKey);
+        if (sendResult.hash) {
+          return { 
+            success: true, 
+            hash: sendResult.hash,
+            block: block
+          };
+        }
+        
         return { 
           success: false, 
           error: processResult.error,
@@ -828,6 +861,61 @@ class NanoTransactions {
     } catch (error) {
       console.error('Error creating send block:', error);
       return { success: false, error: 'Failed to create send block' };
+    }
+  }
+  
+  /**
+   * Convert XNO to raw units (1 XNO = 10^30 raw)
+   */
+  private convertToRaw(amount: string): string {
+    // Ensure the amount is a valid number
+    const numAmount = parseFloat(amount);
+    if (isNaN(numAmount)) {
+      return '0';
+    }
+    
+    // Convert to raw (1 XNO = 10^30 raw)
+    const rawAmount = BigInt(Math.floor(numAmount * 1e6)) * BigInt(1e24);
+    return rawAmount.toString();
+  }
+  
+  /**
+   * Try to send XNO using the direct send RPC command
+   */
+  private async sendDirectRPC(fromAddress: string, toAddress: string, amount: string, privateKey: string): Promise<{ hash?: string, error?: string }> {
+    try {
+      console.log(`Trying direct RPC send from ${fromAddress} to ${toAddress} for ${amount} raw`);
+      
+      const response = await fetch(this.apiUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${this.rpcKey}`
+        },
+        body: JSON.stringify({
+          action: 'send',
+          wallet: fromAddress, // For this API, we pass the source address
+          source: fromAddress,
+          destination: toAddress,
+          amount: amount
+        })
+      });
+      
+      const data = await response.json();
+      console.log('Direct send response:', data);
+      
+      if (data.error) {
+        return { error: data.error };
+      }
+      
+      if (data.block) {
+        return { hash: data.block };
+      }
+      
+      return { error: 'Unknown error in direct send' };
+    } catch (error) {
+      console.error('Error in direct send:', error);
+      return { error: 'Failed to execute direct send' };
     }
   }
 
