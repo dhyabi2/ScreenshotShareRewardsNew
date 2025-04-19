@@ -268,6 +268,62 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
+  // Send tip (real XNO transaction)
+  app.post('/api/wallet/send-tip', async (req, res) => {
+    try {
+      const { fromAddress, privateKey, toAddress, amount, contentId } = req.body;
+      
+      if (!fromAddress || !privateKey || !toAddress || !amount) {
+        return res.status(400).json({ error: 'Missing required parameters: fromAddress, privateKey, toAddress, amount' });
+      }
+      
+      // Validate wallet addresses
+      if (!isValidXNOAddress(fromAddress) || !isValidXNOAddress(toAddress)) {
+        return res.status(400).json({ error: 'Invalid wallet address format' });
+      }
+      
+      // Convert amount to string in case it's a number
+      const amountStr = amount.toString();
+      
+      console.log(`Processing tip of ${amountStr} XNO from ${fromAddress} to ${toAddress}`);
+      
+      // Send the transaction using the sendXnoService
+      const result = await sendXnoService.sendTransaction(fromAddress, privateKey, toAddress, amountStr);
+      
+      if (!result.success) {
+        console.error('Tip transaction failed:', result.error);
+        return res.status(400).json({ success: false, error: result.error });
+      }
+      
+      // Save payment record if successful
+      if (contentId) {
+        try {
+          await storage.createPayment({
+            fromWallet: fromAddress,
+            toWallet: toAddress,
+            amount: parseFloat(amountStr),
+            contentId: parseInt(contentId),
+            status: 'completed',
+            timestamp: new Date()
+          });
+          console.log(`Payment record created for tip to content ${contentId}`);
+        } catch (storageError) {
+          console.error('Failed to create payment record:', storageError);
+          // Continue even if storage fails - the blockchain transaction is what matters
+        }
+      }
+      
+      return res.json({
+        success: true,
+        hash: result.hash,
+        message: `Successfully sent ${amountStr} XNO to ${toAddress}`
+      });
+    } catch (error: any) {
+      console.error('Error processing tip:', error);
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+  
   // Enhanced wallet endpoints with walletService
   app.post('/api/wallet/info', async (req, res) => {
     try {

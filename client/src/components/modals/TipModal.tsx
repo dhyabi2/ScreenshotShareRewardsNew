@@ -3,7 +3,7 @@ import { useMutation } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { Content } from "@/types";
 import { api } from "@/lib/api";
-import { generatePaymentUrl, truncateAddress } from "@/lib/xno";
+import { truncateAddress } from "@/lib/xno";
 import { useWallet } from "@/contexts/WalletContext";
 import {
   Dialog,
