@@ -636,6 +636,22 @@ export default function Wallet() {
                             >
                               Try Advanced Receive
                             </Button>
+                            
+                            <Button 
+                              variant="outline"
+                              size="sm" 
+                              className="self-start text-amber-700 border-amber-300 bg-amber-50"
+                              onClick={() => {
+                                toast({
+                                  title: "Important Note",
+                                  description: "In some cases, pending funds can only be received once a node accepts the work. You can still view your pending transactions on a Nano block explorer while we work on improving the receive functionality.",
+                                });
+                                
+                                window.open(`https://nanolooker.com/account/${walletAddress}`, '_blank');
+                              }}
+                            >
+                              View Pending on Explorer
+                            </Button>
                           </div>
                         </div>
                       )}

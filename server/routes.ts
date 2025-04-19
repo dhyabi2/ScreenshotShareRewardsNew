@@ -440,13 +440,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       try {
+        // Check if account is new (never received funds before)
+        const accountInfo = await walletService.getAccountInfo(address);
+        const isNewAccount = accountInfo?.error === 'Account not found';
+        console.log(`Account status: ${isNewAccount ? 'NEW - opening block needed' : 'EXISTING - receive block needed'}`);
+        
+        // For new accounts, we need to use an even lower threshold initially
+        const adaptedWorkThreshold = isNewAccount 
+          ? (workThreshold || '0000000000000000') // Use zero threshold for new accounts by default
+          : (workThreshold || 'fffffff000000000'); // Use a safe threshold for existing accounts
+          
         // Process the pending blocks with custom options
         const result = await walletService.receivePendingWithOptions(
           address, 
           privateKey, 
           {
-            workThreshold: workThreshold || 'ff00000000000000',
-            maxRetries: maxRetries || 3
+            workThreshold: adaptedWorkThreshold,
+            maxRetries: maxRetries || 5, // Use more retries by default
+            isNewAccount: isNewAccount
           }
         );
         
@@ -485,8 +496,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
               accountInfo: debugInfo,
               pendingBlocks: walletInfo.pending?.blocks || [],
               customSettings: {
-                workThreshold: workThreshold || 'ff00000000000000',
-                maxRetries: maxRetries || 3
+                workThreshold: adaptedWorkThreshold,
+                maxRetries: maxRetries || 5,
+                isNewAccount: isNewAccount
               }
             }
           });
