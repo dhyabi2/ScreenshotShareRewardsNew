@@ -42,6 +42,11 @@ router.get('/pool-stats', async (req: Request, res: Response) => {
       uploadPoolPercentage: 70,
       likePoolPercentage: 30,
       dailyDistribution: 0.1,
+      uploadPool: 0,
+      likePool: 0,
+      totalUploads: 0,
+      totalLikes: 0,
+      estimatedEarnings: 0,
       poolAddress: poolWallet.getPoolAddress() || ''
     });
   }

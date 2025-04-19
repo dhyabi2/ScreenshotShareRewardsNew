@@ -22,6 +22,8 @@ export interface DailyPoolStats {
   totalUploads: number;
   totalLikes: number;
   estimatedEarnings: number;
+  poolAddress?: string;
+  dailyDistribution?: number;
 }
 
 export interface UploadFormData {

@@ -87,6 +87,27 @@ export default function StatsCard({ walletAddress }: StatsCardProps) {
             <Progress value={likePoolPercentage} className="h-2 mt-1" />
           </div>
           
+          {poolStats.poolAddress && (
+            <div className="mt-2 p-3 border border-dashed rounded-lg text-xs">
+              <h3 className="font-medium text-gray-500 mb-1">
+                Pool Wallet (Public)
+              </h3>
+              <p className="break-all text-xs">
+                {poolStats.poolAddress}
+              </p>
+              <div className="mt-1">
+                <a 
+                  href={`https://nanexplorer.com/nano/${poolStats.poolAddress}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-blue-500 hover:underline"
+                >
+                  View on Nanexplorer →
+                </a>
+              </div>
+            </div>
+          )}
+          
           {walletAddress && (
             <div className="p-4 bg-neutral-100 rounded-lg">
               <h3 className="text-sm font-medium mb-2">Your Estimated Earnings</h3>
