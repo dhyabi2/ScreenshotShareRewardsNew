@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Link } from "wouter";
 import { useMutation } from "@tanstack/react-query";
 import { Heart, DollarSign, Share2, Flag, ThumbsUp } from "lucide-react";
@@ -7,6 +7,7 @@ import { Content } from "@/types";
 import { truncateAddress } from "@/lib/xno";
 import { formatXNO } from "@/lib/utils";
 import { api } from "@/lib/api";
+import { useWallet } from "@/contexts/WalletContext";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -41,20 +42,8 @@ export default function ContentCard({ content, onUnlock }: ContentCardProps) {
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [isUpvoteModalOpen, setIsUpvoteModalOpen] = useState(false);
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
-  const [currentWallet, setCurrentWallet] = useState("");
-  const [privateKey, setPrivateKey] = useState("");
   const { toast } = useToast();
-  
-  // Automatically load wallet from localStorage on component mount
-  useEffect(() => {
-    const savedWallet = localStorage.getItem('xno_wallet');
-    const savedKey = localStorage.getItem('xno_private_key');
-    
-    if (savedWallet) {
-      setCurrentWallet(savedWallet);
-      if (savedKey) setPrivateKey(savedKey);
-    }
-  }, []);
+  const { walletAddress, privateKey, isConnected, connectWallet } = useWallet();
   
   const likeMutation = useMutation({
     mutationFn: (walletAddress: string) => api.likeContent(content.id, walletAddress),
@@ -87,8 +76,8 @@ export default function ContentCard({ content, onUnlock }: ContentCardProps) {
   
   // Legacy like mutation - will be replaced by upvote
   const handleLike = () => {
-    if (currentWallet) {
-      likeMutation.mutate(currentWallet);
+    if (isConnected && walletAddress) {
+      likeMutation.mutate(walletAddress);
     } else {
       setIsWalletModalOpen(true);
     }
@@ -96,7 +85,7 @@ export default function ContentCard({ content, onUnlock }: ContentCardProps) {
   
   // Handle upvote with real payment (80/20 split to creator/pool)
   const handleUpvote = () => {
-    if (currentWallet && privateKey) {
+    if (isConnected && walletAddress && privateKey) {
       setIsUpvoteModalOpen(true);
     } else {
       setIsWalletModalOpen(true);
@@ -104,17 +93,7 @@ export default function ContentCard({ content, onUnlock }: ContentCardProps) {
   };
   
   const handleTip = () => {
-    // Get wallet from localStorage if not already set
-    if (!currentWallet) {
-      const savedWallet = localStorage.getItem('xno_wallet');
-      if (savedWallet) {
-        setCurrentWallet(savedWallet);
-        const savedKey = localStorage.getItem('xno_private_key');
-        if (savedKey) setPrivateKey(savedKey);
-      }
-    }
-    
-    // Open tip modal regardless of wallet state - this simplifies the user flow
+    // Always open tip modal regardless of wallet state - this simplifies the user flow
     // The TipModal component is already simplified with default 0.01 XNO amount
     setIsTipModalOpen(true);
   };
@@ -128,8 +107,8 @@ export default function ContentCard({ content, onUnlock }: ContentCardProps) {
   };
   
   const handleWalletVerified = (address: string, key?: string) => {
-    setCurrentWallet(address);
-    if (key) setPrivateKey(key);
+    // Connect the wallet using our global context
+    connectWallet(address, key);
     setIsWalletModalOpen(false);
   };
   
@@ -300,18 +279,14 @@ export default function ContentCard({ content, onUnlock }: ContentCardProps) {
       <WalletVerificationModal 
         isOpen={isWalletModalOpen} 
         onOpenChange={setIsWalletModalOpen}
-        onWalletVerified={(address, key) => {
-          setCurrentWallet(address);
-          if (key) setPrivateKey(key);
-          handleWalletVerified(address);
-        }}
+        onWalletVerified={handleWalletVerified}
       />
       
       <TipModal
         isOpen={isTipModalOpen}
         onOpenChange={setIsTipModalOpen}
         content={content}
-        senderWallet={currentWallet}
+        senderWallet={walletAddress}
       />
       
       <PaymentModal
@@ -343,7 +318,7 @@ export default function ContentCard({ content, onUnlock }: ContentCardProps) {
         isOpen={isUpvoteModalOpen}
         onClose={() => setIsUpvoteModalOpen(false)}
         content={content}
-        walletAddress={currentWallet}
+        walletAddress={walletAddress}
         privateKey={privateKey}
       />}
     </>
