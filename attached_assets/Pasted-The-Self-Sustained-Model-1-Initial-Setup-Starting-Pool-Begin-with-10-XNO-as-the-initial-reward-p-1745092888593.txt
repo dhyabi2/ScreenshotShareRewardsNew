@@ -1,0 +1,86 @@
+The Self-Sustained Model
+1. Initial Setup
+Starting Pool: Begin with 10 XNO as the initial reward pool.
+
+Purpose: This fund kickstarts the platform by rewarding early users until the system becomes self-sustaining.
+2. Posting Screenshots
+Free Posting: Users can share screenshots without an upfront cost, encouraging participation.
+
+Quality Control: To prevent spam, implement:
+A daily posting limit (e.g., 3 screenshots per user).
+
+Optional small XNO deposit (refundable) for posting, slashed if content is low-quality or spam, as judged by community or moderators.
+3. Upvoting Mechanism
+How It Works: Users can upvote screenshots they like by paying a small amount of XNO (e.g., 0.01 XNO per upvote).
+
+Reward Split:
+80% (0.008 XNO) goes directly to the screenshot poster as an immediate reward.
+
+20% (0.002 XNO) goes to the reward pool to sustain the system.
+Why It Works: Nano’s feeless transactions make microtransactions like upvotes seamless and cost-effective.
+4. Reward Distribution
+Periodic Rewards: Daily or weekly, distribute a portion of the pool (e.g., 0.1 XNO) to top posters based on the number of upvotes received.
+
+Example: The top 10 posters share the distribution proportionally to their upvotes, incentivizing high-quality content.
+
+Flexibility: Adjust the distribution amount to ensure the pool’s sustainability (e.g., keep outflow less than inflow).
+5. Sustainability and Growth
+Inflow vs. Outflow: The pool grows if the XNO from upvotes (20% per upvote) exceeds the reward distribution.
+Sample Calculation:
+100 upvotes/day × 0.01 XNO = 1 XNO total.
+
+0.8 XNO to posters, 0.2 XNO to pool.
+
+Distribute 0.1 XNO from pool.
+
+Net gain: +0.1 XNO/day.
+Scalability: With thousands of upvotes, the pool could grow significantly (e.g., 1000 upvotes/day = +1 XNO net gain).
+
+Early Phase: Use the initial 10 XNO to reward users based on quality or engagement until upvote activity ramps up.
+6. Additional Revenue Streams
+To enhance sustainability and growth:
+Premium Features: Offer paid features (in XNO) like:
+Boosted visibility for screenshots.
+
+Analytics on screenshot performance.
+
+Exclusive categories or badges.
+Donations: Allow users to donate XNO to the pool voluntarily, rewarding donors with recognition (e.g., badges, leaderboard spots).
+
+Partnerships: Collaborate with brands or companies (e.g., game developers) to sponsor contests or pay for screenshot-based promotion, funneling XNO into the pool.
+7. Abuse Prevention
+Reputation System: Users earn reputation points based on upvote count or content quality, with higher rewards or visibility for high-reputation users.
+
+Moderation: Community or incentivized curators (paid from the pool) flag spam or low-quality content.
+
+Algorithms: Detect duplicates or irrelevant screenshots automatically.
+8. Community Engagement
+Contests: Host weekly themed screenshot contests (e.g., “Best Gaming Moment”) with bonus XNO rewards from the pool.
+
+Social Integration: Enable sharing screenshots to social media, attracting new users and increasing upvote activity.
+
+Categories/Tags: Organize screenshots (e.g., gaming, art, tutorials) for better discoverability.
+How It Becomes Self-Sustained
+Cycle of Value: Users post screenshots → others upvote with XNO → posters earn rewards → pool gets replenished → more rewards distributed.
+
+Growth Potential: As the platform gains popularity, increased upvote activity drives pool growth, enabling larger rewards or additional features.
+
+Bootstrap Phase: The initial 10 XNO sustains early rewards, transitioning to the upvote-driven model as adoption grows.
+Example Scenario
+Day 1: 50 users post screenshots; 200 upvotes occur (2 XNO total).
+Posters get 1.6 XNO (80%).
+
+Pool gets 0.4 XNO (20%).
+
+Distribute 0.2 XNO to top posters.
+
+Pool net gain: +0.2 XNO (10 → 10.2 XNO).
+Day 100: 5000 upvotes/day (50 XNO total).
+Posters get 40 XNO.
+
+Pool gets 10 XNO.
+
+Distribute 5 XNO.
+
+Pool net gain: +5 XNO/day.
+
