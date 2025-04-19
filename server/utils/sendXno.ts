@@ -367,16 +367,42 @@ export class SendXnoService {
    * Convert XNO amount to raw units
    */
   private convertToRaw(amount: string): string {
-    // Parse the amount as a number
-    const numAmount = parseFloat(amount);
-    if (isNaN(numAmount)) {
-      console.log('Invalid amount format');
+    // Ensure we're working with a string
+    const amountStr = amount.toString().trim();
+    
+    // If it's not a valid number, return 0
+    if (!/^-?\d*\.?\d+$/.test(amountStr)) {
+      console.error('Invalid amount format:', amountStr);
       return '0';
     }
     
-    // Convert to raw (1 XNO = 10^30 raw)
-    const rawAmount = BigInt(Math.floor(numAmount * 1e6)) * BigInt(1e24);
-    return rawAmount.toString();
+    // Split by decimal point
+    const parts = amountStr.split('.');
+    let wholePart = parts[0];
+    let fractionalPart = parts.length > 1 ? parts[1] : '';
+    
+    // Pad the fractional part to 30 decimal places (10^30 raw per XNO)
+    fractionalPart = fractionalPart.padEnd(30, '0');
+    
+    // If the whole part is empty or just a minus sign, treat it as zero
+    if (wholePart === '' || wholePart === '-') {
+      wholePart = '0';
+    }
+    
+    // Combine whole and fractional parts to get raw amount
+    // The value is now an integer representing raw units
+    let rawAmountStr = wholePart + fractionalPart;
+    
+    // Remove leading zeros
+    rawAmountStr = rawAmountStr.replace(/^0+/, '');
+    
+    // If empty, it was all zeros
+    if (rawAmountStr === '') {
+      return '0';
+    }
+    
+    console.log(`Converted ${amountStr} XNO to ${rawAmountStr} raw`);
+    return rawAmountStr;
   }
 }
 
