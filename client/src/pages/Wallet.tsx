@@ -604,7 +604,8 @@ export default function Wallet() {
                                     walletAddress, 
                                     privateKey, 
                                     { 
-                                      workThreshold: isNewAccount ? 'ff00000000000000' : 'fffffe0000000000',
+                                      // Dynamic difficulty setting based on account status
+                                      workThreshold: isNewAccount ? '0000000000000000' : 'fffffff000000000',
                                       maxRetries: 5,
                                       debug: true
                                     }
@@ -615,11 +616,22 @@ export default function Wallet() {
                                         description: `Received ${result.count} transactions using advanced method`,
                                       });
                                     } else {
+                                      // Show detailed error message if available
+                                      const errorMessage = result.error || 
+                                        (result.processedBlocks?.length ? 
+                                          `Error: ${result.processedBlocks[0].error}` : 
+                                          'Could not receive funds with advanced method');
+                                      
                                       toast({
                                         title: "Receive Failed",
-                                        description: `Could not receive funds with advanced method`,
+                                        description: errorMessage,
                                         variant: "destructive"
                                       });
+                                      
+                                      // Display network difficulty in console for debugging
+                                      if (result.debug?.accountInfo?.network_minimum) {
+                                        console.log(`Network minimum difficulty: ${result.debug.accountInfo.network_minimum}`);
+                                      }
                                     }
                                     refetchWalletInfo();
                                     refetchTxHistory();

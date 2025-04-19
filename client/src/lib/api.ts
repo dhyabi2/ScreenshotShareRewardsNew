@@ -153,15 +153,28 @@ export const api = {
       success: boolean;
       error?: string;
     }>;
+    error?: string;
+    debug?: any;
   }> => {
     const res = await apiRequest("POST", "/api/wallet/receive-with-options", { 
       address, 
       privateKey,
       workThreshold: options.workThreshold,
-      maxRetries: options.maxRetries,
-      debug: options.debug
+      maxRetries: options.maxRetries || 5,
+      debug: options.debug !== undefined ? options.debug : true // Enable debug by default for better troubleshooting
     });
-    return res.json();
+    
+    try {
+      return await res.json();
+    } catch(e) {
+      console.error("Failed to parse receive response:", e);
+      return {
+        received: false,
+        count: 0,
+        totalAmount: 0,
+        error: "Failed to parse server response"
+      };
+    }
   },
   
   getDepositQrCode: async (address: string, amount?: number): Promise<{

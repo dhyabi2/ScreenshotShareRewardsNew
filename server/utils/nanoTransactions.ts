@@ -255,6 +255,70 @@ class NanoTransactions {
   }
 
   /**
+   * Generate high-quality work for opening blocks specifically
+   * This uses a special direct approach that works better for opening blocks
+   */
+  async generateOpeningWork(hash: string): Promise<string> {
+    console.log('Generating specialized work for opening block...');
+    try {
+      // Try getting the current network difficulty
+      let networkDifficulty = '';
+      try {
+        const activeResponse = await fetch(this.apiUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': this.rpcKey,
+            'X-GPU-Key': this.gpuKey
+          },
+          body: JSON.stringify({
+            action: 'active_difficulty'
+          })
+        });
+        
+        const diffData = await activeResponse.json() as any;
+        if (!diffData.error && diffData.network_current) {
+          networkDifficulty = diffData.network_current;
+          console.log(`Using current network difficulty: ${networkDifficulty}`);
+        }
+      } catch (err) {
+        console.log('Could not determine network difficulty, using default');
+      }
+      
+      // Now let's try to generate work with explicit settings for opening blocks
+      const response = await fetch(this.apiUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': this.rpcKey,
+          'X-GPU-Key': this.gpuKey
+        },
+        body: JSON.stringify({
+          action: 'work_generate',
+          hash: hash,
+          difficulty: networkDifficulty || 'fffffff800000000',
+          use_peers: 'true',
+          multiplier: '1.0'  // Explicitly set multiplier to ensure default
+        })
+      });
+      
+      const data = await response.json() as any;
+      if (data.error) {
+        console.log(`Opening work generation error: ${data.error}`);
+        // Fallback to standard work generation
+        return this.generateWork(hash, true);
+      }
+      
+      console.log('Successfully generated opening block work with specialized method');
+      return data.work;
+    } catch (error) {
+      console.error('Failed to generate opening work:', error);
+      // If specialized method fails, try regular work generation
+      return this.generateWork(hash, true);
+    }
+  }
+
+  /**
    * Process a block through the node - tries multiple methods
    * @param block - The block to process
    * @param isOpeningBlock - Set to true for opening blocks (affects work threshold)
@@ -268,13 +332,38 @@ class NanoTransactions {
           ? 'receive' // Receive block
           : 'send'; // Send block
       
-      // For open blocks, we need an even lower work threshold based on documentation
-      let openingThreshold = 'fffffff800000000'; // Standard
-      if (isOpeningBlock) {
-        // Try progressively lower thresholds
-        if (subtype === 'open') {
-          openingThreshold = 'fffffff800000000'; // Try standard first
+      // For opening blocks, prioritize accuracy over speed
+      let openingThreshold = '';
+      try {
+        // Get the current difficulty setting from the network
+        const activeResponse = await fetch(this.apiUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': this.rpcKey
+          },
+          body: JSON.stringify({
+            action: 'active_difficulty'
+          })
+        });
+        
+        const diffData = await activeResponse.json() as any;
+        if (!diffData.error) {
+          if (diffData.network_current) {
+            openingThreshold = diffData.network_current;
+            console.log(`Using current network difficulty: ${openingThreshold}`);
+          } else if (diffData.network_minimum) {
+            openingThreshold = diffData.network_minimum;
+            console.log(`Using minimum network difficulty: ${openingThreshold}`);
+          }
         }
+      } catch (err) {
+        console.log('Could not determine difficulty threshold, using default');
+      }
+      
+      // Fall back to standard if network difficulty couldn't be determined
+      if (!openingThreshold) {
+        openingThreshold = isOpeningBlock ? 'fffffff800000000' : 'fffffff000000000';
       }
         
       // Retry with progressively more permissive approaches
@@ -461,9 +550,9 @@ class NanoTransactions {
       // For new accounts, use a default representative
       const representative = 'nano_3rropjiqfxpmrrkooej4qtmm1pueu36f9ghinpho4esfdor8785a455d16nf';
       
-      // Generate work for the public key (for opening blocks)
-      console.log('Generating work for opening block...');
-      const work = await this.generateWork(publicKey, true); // Pass true to indicate this is an opening block
+      // Generate special high-quality work for the opening block
+      console.log('Generating specialized work for opening block...');
+      const work = await this.generateOpeningWork(publicKey); // Use our specialized opening block work function
       
       // Create a state block
       const block: BlockData = {
