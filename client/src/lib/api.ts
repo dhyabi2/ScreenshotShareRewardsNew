@@ -192,15 +192,42 @@ export const api = {
   },
   
   // Payment endpoints
-  checkPayment: async (fromWallet: string, toWallet: string, amount: number, contentId?: string): Promise<{ paid: boolean, method?: string }> => {
+  checkPayment: async (params: { from: string, to: string, amount: number, contentId?: number }): Promise<{ paid: boolean, method?: string }> => {
     const response = await fetch("/api/payment/check", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ from: fromWallet, to: toWallet, amount, contentId })
+      body: JSON.stringify(params)
     });
     
     if (!response.ok) {
       throw new Error("Failed to check payment");
+    }
+    
+    return response.json();
+  },
+  
+  // Send tip using real XNO transaction via the backend
+  sendTip: async (params: { 
+    fromAddress: string, 
+    privateKey: string, 
+    toAddress: string, 
+    amount: number | string, 
+    contentId?: number 
+  }): Promise<{
+    success: boolean;
+    hash?: string;
+    message?: string;
+    error?: string;
+  }> => {
+    const response = await fetch("/api/wallet/send-tip", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(params)
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || "Failed to send tip");
     }
     
     return response.json();

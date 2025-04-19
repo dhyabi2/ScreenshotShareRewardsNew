@@ -1,44 +1,41 @@
 /**
- * Specialized utility for sending XNO transactions
- * Following the Nano RPC protocol documentation
+ * XNO Sending Service
+ * Handles real XNO transactions using the Nano RPC API
  */
 
-import { isValidXNOAddress } from '../helpers/validators';
-import nanocurrency from 'nanocurrency';
-import * as nanocurrencyWeb from 'nanocurrency-web';
-
-interface BlockData {
-  type: string;
-  account: string;
-  previous: string;
-  representative: string;
-  balance: string;
-  link: string;
-  signature?: string;
-  work?: string;
-}
+import * as nanocurrency from 'nanocurrency-web';
+import fetch from 'node-fetch';
 
 interface TransactionResult {
   success: boolean;
   hash?: string;
   error?: string;
-  block?: BlockData;
 }
 
-export class SendXnoService {
+class SendXnoService {
   private apiUrl: string;
   private rpcKey: string;
-  private gpuKey: string;
+  private gpuKey?: string;
 
   constructor() {
-    this.apiUrl = 'https://rpc.nano.to/';
-    this.rpcKey = process.env.RPC_KEY || '';
-    this.gpuKey = process.env.PUBLIC_KEY || '';
+    // Read RPC credentials from environment variables
+    this.apiUrl = process.env.RPC_URL || 'https://rpc.nano.to/';
+    this.rpcKey = process.env.RPC_KEY || ''; // Will be empty if not configured
+    this.gpuKey = process.env.GPU_KEY || undefined; // For work_generate
+    
+    console.log('=== USING REAL XNO BLOCKCHAIN API ===');
+    console.log('Connecting to Nano RPC API with provided credentials');
+    console.log('All wallet verifications and payments will use real blockchain data');
+    console.log('=======================================');
   }
 
   /**
-   * Send XNO from one address to another
-   * Implements the Nano RPC protocol's send functionality
+   * Send XNO from one wallet to another
+   * @param fromAddress Sender's wallet address
+   * @param privateKey Sender's private key
+   * @param toAddress Recipient's wallet address
+   * @param amount Amount to send in XNO
+   * @returns Transaction result with hash or error
    */
   async sendTransaction(
     fromAddress: string,
@@ -47,121 +44,174 @@ export class SendXnoService {
     amount: string
   ): Promise<TransactionResult> {
     try {
-      // Validate addresses
-      if (!isValidXNOAddress(fromAddress) || !isValidXNOAddress(toAddress)) {
-        console.log('Invalid wallet address format');
-        return { success: false, error: 'Invalid wallet address format' };
+      // Validate parameters
+      if (!this.isValidAddress(fromAddress) || !this.isValidAddress(toAddress)) {
+        return {
+          success: false,
+          error: 'Invalid wallet address format'
+        };
       }
 
-      // Normalize the private key
-      const normalizedKey = privateKey.trim().toLowerCase();
-      console.log(`Sending ${amount} XNO from ${fromAddress} to ${toAddress}`);
-      
-      // Validate the private key
-      if (!nanocurrency.checkKey(normalizedKey)) {
-        console.log(`Private key validation failed for send`);
-        
-        // Continue only if it's a valid hex string
-        if (!/^[0-9a-f]{64}$/i.test(normalizedKey)) {
-          return { success: false, error: 'Invalid private key format: must be a 64-character hex string' };
-        }
+      if (!privateKey || privateKey.length < 60) {
+        return {
+          success: false,
+          error: 'Invalid private key format'
+        };
       }
+
+      if (!amount || parseFloat(amount) <= 0) {
+        return {
+          success: false,
+          error: 'Amount must be greater than zero'
+        };
+      }
+
+      // Convert amount to raw
+      const rawAmount = nanocurrency.convert(amount, 'XNO', 'raw');
       
-      // Convert amount to raw (smallest unit)
-      const rawAmount = this.convertToRaw(amount);
-      console.log(`Amount in raw: ${rawAmount}`);
-      
-      // Get the source account info
+      // Get account info for the sender
       const accountInfo = await this.getAccountInfo(fromAddress);
-      if (accountInfo.error) {
-        return { success: false, error: `Could not get account info: ${accountInfo.error}` };
+      
+      if (!accountInfo || accountInfo.error === 'Account not found') {
+        return {
+          success: false,
+          error: 'Sender account not found or has no previous blocks'
+        };
       }
       
-      // Check if account has sufficient balance
-      const currentBalance = accountInfo.balance || '0';
-      if (BigInt(currentBalance) < BigInt(rawAmount)) {
-        return { success: false, error: 'Insufficient balance' };
+      // Check if the account has enough balance
+      const balanceRaw = accountInfo.balance || '0';
+      if (BigInt(balanceRaw) < BigInt(rawAmount)) {
+        return {
+          success: false,
+          error: `Insufficient balance: ${nanocurrency.convert(balanceRaw, 'raw', 'XNO')} XNO available, ${amount} XNO needed`
+        };
       }
       
-      // Calculate new balance after send
-      const newBalance = (BigInt(currentBalance) - BigInt(rawAmount)).toString();
-      console.log(`Current balance: ${currentBalance} raw, new balance will be: ${newBalance} raw`);
-      
-      // Generate work for the send transaction
-      console.log(`Generating work using previous block: ${accountInfo.frontier}`);
-      const work = await this.generateWork(accountInfo.frontier);
-      
-      // Get destination public key
-      const destinationPublicKey = nanocurrencyWeb.tools.addressToPublicKey(toAddress);
-      
-      // Create the block
-      const representative = accountInfo.representative || 'nano_3rropjiqfxpmrrkooej4qtmm1pueu36f9ghinpho4esfdor8785a455d16nf';
-      
-      const block: BlockData = {
-        type: 'state',
-        account: fromAddress,
-        previous: accountInfo.frontier,
-        representative: representative,
-        balance: newBalance,
-        link: destinationPublicKey,
-        work: work
+      // Create block with proper previous, representative, etc.
+      const blockData = {
+        walletAccount: fromAddress,
+        toAddress,
+        amount: rawAmount,
+        frontier: accountInfo.frontier,
+        representative: accountInfo.representative || fromAddress,
+        balance: accountInfo.balance || '0',
+        privateKey
       };
       
-      // Create block hash
-      const blockForHash = {
-        account: block.account,
-        previous: block.previous,
-        representative: block.representative,
-        balance: block.balance,
-        link: block.link
+      // Process the send transaction
+      const result = await this.processSendBlock(blockData);
+      
+      return result;
+    } catch (error: any) {
+      console.error('Error sending XNO:', error);
+      return {
+        success: false,
+        error: error.message || 'Failed to send XNO'
       };
-      
-      const blockHash = nanocurrency.hashBlock(blockForHash);
-      
-      // Sign the block
-      block.signature = nanocurrency.signBlock({
-        hash: blockHash,
-        secretKey: normalizedKey
-      });
-      
-      console.log(`Created signed send block with hash: ${blockHash}`);
-      
-      // Process the block using different methods
-      let result = await this.processBlockStandard(block);
-      
-      // If standard method fails, try fallback methods
-      if (result.error) {
-        console.log(`Standard block processing failed: ${result.error}, trying alternatives...`);
-        
-        // Try the force method
-        result = await this.processBlockForce(block);
-        
-        if (result.error) {
-          // Try the direct send RPC method
-          console.log(`Force method failed: ${result.error}, trying direct send...`);
-          const directResult = await this.sendDirect(fromAddress, toAddress, rawAmount);
-          
-          if (directResult.error) {
-            return { 
-              success: false, 
-              error: `All send methods failed. Last error: ${directResult.error}`,
-              block: block
-            };
-          }
-          
-          return { success: true, hash: directResult.hash, block: block };
-        }
-      }
-      
-      return { success: true, hash: result.hash || blockHash, block: block };
-    } catch (error) {
-      console.error('Error in send transaction:', error);
-      return { success: false, error: `Unexpected error in send transaction: ${error}` };
     }
   }
-  
+
   /**
-   * Get account information
+   * Process a send block for an XNO transaction
+   */
+  private async processSendBlock(blockData: {
+    walletAccount: string;
+    toAddress: string;
+    amount: string;
+    frontier: string;
+    representative: string;
+    balance: string;
+    privateKey: string;
+  }): Promise<TransactionResult> {
+    try {
+      // Calculate new balance after sending
+      const newBalanceRaw = (BigInt(blockData.balance) - BigInt(blockData.amount)).toString();
+      
+      // Create a state block
+      const block = {
+        type: 'state',
+        account: blockData.walletAccount,
+        previous: blockData.frontier,
+        representative: blockData.representative,
+        balance: newBalanceRaw,
+        link: this.addressToPublicKey(blockData.toAddress)
+      };
+      
+      // Calculate hash
+      const blockHash = nanocurrency.hashBlock(block);
+      
+      // Generate PoW for the transaction
+      const workResult = await this.generateWork(blockData.frontier);
+      
+      if (!workResult.work) {
+        return {
+          success: false,
+          error: workResult.error || 'Failed to generate work for transaction'
+        };
+      }
+      
+      // Sign the block
+      const signature = nanocurrency.sign(blockData.privateKey, blockHash);
+      
+      // Build the complete block for processing
+      const processBlock = {
+        block: {
+          type: 'state',
+          account: blockData.walletAccount,
+          previous: blockData.frontier,
+          representative: blockData.representative,
+          balance: newBalanceRaw,
+          link: this.addressToPublicKey(blockData.toAddress),
+          work: workResult.work,
+          signature: signature
+        },
+        subtype: 'send',
+        json_block: true
+      };
+      
+      // Process the block through RPC
+      const response = await fetch(this.apiUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': this.rpcKey
+        },
+        body: JSON.stringify({
+          action: 'process',
+          ...processBlock
+        })
+      });
+      
+      const result = await response.json();
+      
+      if (result.hash) {
+        return {
+          success: true,
+          hash: result.hash
+        };
+      } else if (result.error) {
+        return {
+          success: false,
+          error: result.error
+        };
+      } else {
+        return {
+          success: false,
+          error: 'Unknown error processing the transaction'
+        };
+      }
+    } catch (error: any) {
+      console.error('Error processing send block:', error);
+      return {
+        success: false,
+        error: error.message || 'Failed to process the transaction'
+      };
+    }
+  }
+
+  /**
+   * Get account information from the Nano RPC
    */
   private async getAccountInfo(address: string): Promise<any> {
     try {
@@ -174,235 +224,70 @@ export class SendXnoService {
         body: JSON.stringify({
           action: 'account_info',
           account: address,
-          representative: true,
-          pending: true
+          representative: true
         })
       });
       
       return await response.json();
     } catch (error) {
-      console.error('Error fetching account info:', error);
-      return { error: 'Failed to fetch account info' };
+      console.error('Error getting account info:', error);
+      throw error;
     }
   }
-  
+
   /**
-   * Generate work for a block 
+   * Generate work for a block
    */
-  private async generateWork(hash: string): Promise<string> {
+  private async generateWork(hash: string): Promise<{ work?: string; error?: string }> {
     try {
-      console.log(`Generating work for hash: ${hash}`);
+      // Prepare headers with GPU key if available for faster work generation
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json'
+      };
+      
+      if (this.rpcKey) {
+        headers['Authorization'] = this.rpcKey;
+      }
+      
+      if (this.gpuKey) {
+        headers['X-GPU-Key'] = this.gpuKey;
+      }
       
       const response = await fetch(this.apiUrl, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': this.rpcKey,
-          'X-GPU-Key': this.gpuKey
-        },
+        headers,
         body: JSON.stringify({
           action: 'work_generate',
           hash: hash,
-          difficulty: 'fffffff800000000'
+          difficulty: 'fffffff800000000'  // Current default difficulty
         })
       });
       
-      const data = await response.json() as any;
+      const result = await response.json();
       
-      if (data.error) {
-        throw new Error(`Work generation failed: ${data.error}`);
+      if (result.work) {
+        return { work: result.work };
+      } else {
+        return { error: result.error || 'Failed to generate work' };
       }
-      
-      console.log(`Generated work: ${data.work}`);
-      return data.work;
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error generating work:', error);
-      
-      // Fallback to a simpler work generation if the main one fails
-      try {
-        const response = await fetch(this.apiUrl, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            action: 'work_generate',
-            hash: hash
-          })
-        });
-        
-        const data = await response.json() as any;
-        
-        if (data.error) {
-          throw new Error(`Fallback work generation failed: ${data.error}`);
-        }
-        
-        console.log(`Generated fallback work: ${data.work}`);
-        return data.work;
-      } catch (fallbackError) {
-        console.error('Fallback work generation failed:', fallbackError);
-        throw new Error('All work generation methods failed');
-      }
+      return { error: error.message || 'Error generating work' };
     }
   }
-  
+
   /**
-   * Process a block with standard method
+   * Convert a Nano address to its public key (account)
    */
-  private async processBlockStandard(block: BlockData): Promise<{ hash?: string, error?: string }> {
-    try {
-      console.log('Processing block with standard method...');
-      
-      const response = await fetch(this.apiUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': this.rpcKey
-        },
-        body: JSON.stringify({
-          action: 'process',
-          json_block: 'true',
-          block: block
-        })
-      });
-      
-      const data = await response.json() as any;
-      
-      if (data.error) {
-        return { error: data.error };
-      }
-      
-      if (data.hash) {
-        console.log(`Block processed successfully with hash: ${data.hash}`);
-        return { hash: data.hash };
-      }
-      
-      return { error: 'Unknown error in process block' };
-    } catch (error) {
-      console.error('Error in process block:', error);
-      return { error: 'Failed to process block' };
-    }
+  private addressToPublicKey(address: string): string {
+    return nanocurrency.derivePublicKey(address);
   }
-  
+
   /**
-   * Process a block with force parameter
+   * Check if a string is a valid Nano address
    */
-  private async processBlockForce(block: BlockData): Promise<{ hash?: string, error?: string }> {
-    try {
-      console.log('Processing block with force parameter...');
-      
-      const response = await fetch(this.apiUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': this.rpcKey
-        },
-        body: JSON.stringify({
-          action: 'process',
-          json_block: 'true',
-          block: block,
-          force: 'true',
-          subtype: 'send'
-        })
-      });
-      
-      const data = await response.json() as any;
-      
-      if (data.error) {
-        return { error: data.error };
-      }
-      
-      if (data.hash) {
-        console.log(`Block processed successfully with force and hash: ${data.hash}`);
-        return { hash: data.hash };
-      }
-      
-      return { error: 'Unknown error in force process block' };
-    } catch (error) {
-      console.error('Error in force process block:', error);
-      return { error: 'Failed to process block with force' };
-    }
-  }
-  
-  /**
-   * Use direct send RPC method
-   */
-  private async sendDirect(fromAddress: string, toAddress: string, amount: string): Promise<{ hash?: string, error?: string }> {
-    try {
-      console.log(`Trying direct send from ${fromAddress} to ${toAddress} for ${amount} raw`);
-      
-      const response = await fetch(this.apiUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': this.rpcKey
-        },
-        body: JSON.stringify({
-          action: 'send',
-          source: fromAddress,
-          destination: toAddress,
-          amount: amount
-        })
-      });
-      
-      const data = await response.json() as any;
-      
-      if (data.error) {
-        return { error: data.error };
-      }
-      
-      if (data.block) {
-        console.log(`Direct send successful with block: ${data.block}`);
-        return { hash: data.block };
-      }
-      
-      return { error: 'Unknown error in direct send' };
-    } catch (error) {
-      console.error('Error in direct send:', error);
-      return { error: 'Failed to execute direct send' };
-    }
-  }
-  
-  /**
-   * Convert XNO amount to raw units
-   */
-  private convertToRaw(amount: string): string {
-    // Ensure we're working with a string
-    const amountStr = amount.toString().trim();
-    
-    // If it's not a valid number, return 0
-    if (!/^-?\d*\.?\d+$/.test(amountStr)) {
-      console.error('Invalid amount format:', amountStr);
-      return '0';
-    }
-    
-    // Split by decimal point
-    const parts = amountStr.split('.');
-    let wholePart = parts[0];
-    let fractionalPart = parts.length > 1 ? parts[1] : '';
-    
-    // Pad the fractional part to 30 decimal places (10^30 raw per XNO)
-    fractionalPart = fractionalPart.padEnd(30, '0');
-    
-    // If the whole part is empty or just a minus sign, treat it as zero
-    if (wholePart === '' || wholePart === '-') {
-      wholePart = '0';
-    }
-    
-    // Combine whole and fractional parts to get raw amount
-    // The value is now an integer representing raw units
-    let rawAmountStr = wholePart + fractionalPart;
-    
-    // Remove leading zeros
-    rawAmountStr = rawAmountStr.replace(/^0+/, '');
-    
-    // If empty, it was all zeros
-    if (rawAmountStr === '') {
-      return '0';
-    }
-    
-    console.log(`Converted ${amountStr} XNO to ${rawAmountStr} raw`);
-    return rawAmountStr;
+  isValidAddress(address: string): boolean {
+    return nanocurrency.checkAddress(address);
   }
 }
 

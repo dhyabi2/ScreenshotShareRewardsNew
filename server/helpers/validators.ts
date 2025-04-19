@@ -1,21 +1,20 @@
-import * as nacurrency from 'nanocurrency-web';
+/**
+ * Input validators for the application
+ */
+
+import * as nanocurrency from 'nanocurrency-web';
 
 /**
  * Validate an XNO wallet address using nanocurrency-web library
  */
 export function isValidXNOAddress(address: string): boolean {
-  // Basic validation for Nano addresses
   if (!address) return false;
   
   try {
-    // Use the nanocurrency-web library to validate the address
-    // This handles checksums and proper formatting
-    const isValid = nacurrency.tools.validateAddress(address);
-    return isValid;
+    // Use the nanocurrency library's built-in address validator
+    return nanocurrency.checkAddress(address);
   } catch (error) {
-    console.error('Error validating address with nanocurrency-web:', error);
-    
-    // Fallback validation if the library throws an error
+    // If there's an error in the validation process, fall back to regex validation
     return fallbackValidateAddress(address);
   }
 }
@@ -24,36 +23,14 @@ export function isValidXNOAddress(address: string): boolean {
  * Fallback address validator in case the library fails
  */
 function fallbackValidateAddress(address: string): boolean {
-  // Support both nano_ and xno_ prefixes
-  if (!address.startsWith('nano_') && !address.startsWith('xno_')) return false;
-  
-  // Nano addresses should have a specific length
-  // Format is: nano_<encoded public key + checksum>
-  if (address.length !== 65) {
-    console.log(`Address length wrong: ${address.length}, should be 65`);
-    
-    // While we'd rather have correct addresses, for testing purposes we're being more permissive
-    if (address.length < 60) return false;
+  // XNO addresses start with 'nano_' and are 65 characters long
+  if (!address.startsWith('nano_') || address.length !== 65) {
+    return false;
   }
   
-  // Check that the address contains only valid characters
-  // XNO addresses use a base-32 encoding with specific character set:
-  // "13456789abcdefghijkmnopqrstuwxyz"
-  // Missing: 0,2,l,v
-  const validChars = /^(nano|xno)_[13456789abcdefghijkmnopqrstuwxyz]+$/;
+  // After 'nano_', there should be 52 more characters (alphanumeric excluding certain letters)
+  const validChars = /^[13456789abcdefghijkmnopqrstuwxyz]+$/;
+  const addressPart = address.substring(5);
   
-  // For known addresses from major wallets, bypass some validation
-  const knownValidAddresses = [
-    'nano_3t6k35gi95xu6tergt6p69ck76ogmitsa8mnijtpxm9fkcm736xtoncuohr3',
-    'nano_1ipx847tk8o46pwxt5qjdbncjqcbwcc1rrmqnkztrfjy5k7z4imsrata9est',
-    'nano_3qb6o6i1tkzr6jwr5s7eehfxwg9x6eemitdinbpi7u8bjjwsgqfj4wzser3x',
-    'nano_1natrium1o3z5519ifou7xii8crpxpk8y65qmkih8e8bpsjri651oza8imdd',
-    'nano_1x7biz69cem95oo7gxkrw6kzhfywq4x5dupw4z1bdzkb74dk9kpxwzjbdhhs'
-  ];
-  
-  if (knownValidAddresses.includes(address)) {
-    return true;
-  }
-  
-  return validChars.test(address);
+  return validChars.test(addressPart) && addressPart.length === 60;
 }

@@ -33,18 +33,45 @@ export default function TipModal({
   const [tipAmount, setTipAmount] = useState("0.01");
   const [isProcessing, setIsProcessing] = useState(false);
   const { toast } = useToast();
-  const { walletAddress, isConnected } = useWallet();
+  const { walletAddress, isConnected, privateKey } = useWallet();
   
   // Use the global wallet context if available, otherwise fall back to the provided senderWallet
   const activeWallet = isConnected && walletAddress ? walletAddress : senderWallet;
   
-  // If no wallet is connected, we'll still show the tip dialog
-  // but display a notice that wallet verification won't be available
+  // Send tip mutation - uses real XNO transactions
+  const sendTipMutation = useMutation({
+    mutationFn: (params: { 
+      fromAddress: string,
+      privateKey: string,
+      toAddress: string,
+      amount: string,
+      contentId: number
+    }) => {
+      return api.sendTip(params);
+    },
+    onSuccess: (data) => {
+      toast({
+        title: "Tip sent successfully!",
+        description: `You have tipped ${tipAmount} XNO to the creator.`,
+      });
+      setIsProcessing(false);
+      onOpenChange(false);
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error sending tip",
+        description: error.message || "Failed to send XNO tip. Please check your wallet balance.",
+        variant: "destructive",
+      });
+      setIsProcessing(false);
+    }
+  });
   
+  // The legacy payment verification after user opens payment URL
   const checkPaymentMutation = useMutation({
     mutationFn: () => {
       return api.checkPayment({
-        from: activeWallet,
+        from: activeWallet!,
         to: content.walletAddress,
         amount: parseFloat(tipAmount),
         contentId: content.id
@@ -86,30 +113,26 @@ export default function TipModal({
       return;
     }
     
-    // Create payment URL and open it
-    const paymentUrl = generatePaymentUrl(
-      content.walletAddress,
-      parseFloat(tipAmount),
-      `Tip for ${content.title}`
-    );
+    setIsProcessing(true);
     
-    window.open(paymentUrl, "_blank");
-    
-    // Only attempt to verify payment if we have a wallet address
-    if (activeWallet) {
-      setIsProcessing(true);
-      
-      // Check for payment after 5 seconds
-      setTimeout(() => {
-        checkPaymentMutation.mutate();
-      }, 5000);
-    } else {
-      // No wallet to verify payment with, just close the dialog
-      toast({
-        title: "Tip sent",
-        description: "Thank you for your tip! (No wallet verification available)",
+    // If we have both wallet address and private key, use real XNO transaction
+    if (activeWallet && privateKey) {
+      // Use real XNO transaction with the private key via the backend
+      sendTipMutation.mutate({
+        fromAddress: activeWallet,
+        privateKey: privateKey,
+        toAddress: content.walletAddress,
+        amount: tipAmount,
+        contentId: content.id
       });
-      onOpenChange(false);
+    } else {
+      // No wallet or private key available, show message
+      toast({
+        title: "Wallet not fully connected",
+        description: "Please connect your wallet with private key to send tips directly.",
+        variant: "destructive",
+      });
+      setIsProcessing(false);
     }
   };
   
