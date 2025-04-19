@@ -281,7 +281,11 @@ export default function ContentCard({ content, onUnlock }: ContentCardProps) {
       <WalletVerificationModal 
         isOpen={isWalletModalOpen} 
         onOpenChange={setIsWalletModalOpen}
-        onWalletVerified={handleWalletVerified}
+        onWalletVerified={(address, key) => {
+          setCurrentWallet(address);
+          if (key) setPrivateKey(key);
+          handleWalletVerified(address);
+        }}
       />
       
       <TipModal
@@ -314,6 +318,15 @@ export default function ContentCard({ content, onUnlock }: ContentCardProps) {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      
+      {/* Upvote Modal for the 80/20 paid upvote system */}
+      {privateKey && <UpvoteModal
+        isOpen={isUpvoteModalOpen}
+        onClose={() => setIsUpvoteModalOpen(false)}
+        content={content}
+        walletAddress={currentWallet}
+        privateKey={privateKey}
+      />}
     </>
   );
 }

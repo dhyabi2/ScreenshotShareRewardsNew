@@ -1,5 +1,7 @@
 import { useState } from "react";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { api } from "@/lib/api";
+import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -9,14 +11,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
-import { useToast } from "@/hooks/use-toast";
-import { api } from "@/lib/api";
-import { queryClient } from "@/lib/queryClient";
-import { formatXNO } from "@/lib/utils";
-import { Content } from "@/types";
+import { formatXNO, truncateAddress } from "@/lib/utils";
+import { Content } from "@shared/schema";
+import { Loader2, Info } from "lucide-react";
 
 interface UpvoteModalProps {
   isOpen: boolean;
@@ -31,34 +29,37 @@ export default function UpvoteModal({
   onClose,
   content,
   walletAddress,
-  privateKey,
+  privateKey
 }: UpvoteModalProps) {
+  const [amount, setAmount] = useState(0.01); // Default 0.01 XNO
+  const [isProcessing, setIsProcessing] = useState(false);
   const { toast } = useToast();
-  const [amount, setAmount] = useState(0.01); // Default upvote amount
-
+  const queryClient = useQueryClient();
+  
+  // Calculate 80/20 split
+  const creatorAmount = amount * 0.8;
+  const poolAmount = amount * 0.2;
+  
   const upvoteMutation = useMutation({
-    mutationFn: async () => {
-      return api.processUpvote(
-        walletAddress,
-        privateKey,
-        content.walletAddress,
-        Number(content.id),
-        amount
-      );
-    },
+    mutationFn: () => api.processUpvote(
+      walletAddress,
+      privateKey,
+      content.walletAddress,
+      content.id,
+      amount
+    ),
     onSuccess: (data) => {
       toast({
-        title: "Upvote successful!",
-        description: `${formatXNO(data.creatorAmount)} XNO sent to creator and ${formatXNO(data.poolAmount)} XNO contributed to reward pool.`,
+        title: "Upvote successful",
+        description: `Your payment of ${amount} XNO was processed successfully!`,
       });
       
-      // Invalidate queries to refresh content data
+      // Invalidate relevant queries to refresh data
       queryClient.invalidateQueries({ queryKey: ['/api/content'] });
-      queryClient.invalidateQueries({ queryKey: [`/api/content/${content.id}`] });
-      queryClient.invalidateQueries({ queryKey: ['/api/wallet/info'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/content', content.id] });
       queryClient.invalidateQueries({ queryKey: ['/api/wallet/transactions'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/rewards/pool-stats'] });
       
+      // Close the modal
       onClose();
     },
     onError: (error: Error) => {
@@ -67,91 +68,104 @@ export default function UpvoteModal({
         description: error.message,
         variant: "destructive",
       });
-    },
+      setIsProcessing(false);
+    }
   });
-
-  const handleUpvote = async () => {
+  
+  const handleUpvote = () => {
+    setIsProcessing(true);
     upvoteMutation.mutate();
   };
-
-  // Calculate the 80/20 split for display
-  const creatorAmount = amount * 0.8;
-  const poolAmount = amount * 0.2;
-
+  
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="sm:max-w-[425px]">
+    <Dialog open={isOpen} onOpenChange={(open) => {
+      if (!open) onClose();
+    }}>
+      <DialogContent>
         <DialogHeader>
-          <DialogTitle>Upvote this content</DialogTitle>
+          <DialogTitle>Upvote Content</DialogTitle>
           <DialogDescription>
-            Your upvote payment will be split with 80% going to the creator and 20% to the community reward pool.
+            Support this content with XNO following the Self-Sustained Model
           </DialogDescription>
         </DialogHeader>
-
-        <div className="grid gap-4 py-4">
-          <div className="grid grid-cols-4 items-center gap-4">
-            <Label htmlFor="amount" className="text-right">
-              Amount (XNO)
-            </Label>
-            <Input
-              id="amount"
-              type="number"
-              value={amount}
-              onChange={(e) => setAmount(Number(e.target.value))}
-              step={0.01}
-              min={0.01}
-              max={10}
-              className="col-span-3"
-            />
+        
+        <div className="bg-primary bg-opacity-10 p-4 rounded-lg space-y-2">
+          <div className="flex items-center">
+            <Info className="h-5 w-5 mr-2 text-primary" />
+            <h3 className="font-medium text-sm">How the Self-Sustained Model works:</h3>
+          </div>
+          <ul className="text-sm text-gray-600 space-y-1 pl-7 list-disc">
+            <li>80% of your upvote goes directly to the content creator</li>
+            <li>20% goes to the platform reward pool</li>
+            <li>Content creators earn additional rewards from the pool</li>
+          </ul>
+        </div>
+        
+        <div className="space-y-4 py-2">
+          <div className="space-y-2">
+            <div className="flex justify-between">
+              <label className="text-sm font-medium">
+                Content
+              </label>
+              <span className="text-xs text-gray-500">{truncateAddress(content.walletAddress)}</span>
+            </div>
+            <div className="p-3 bg-gray-100 rounded-lg">
+              <p className="font-medium text-sm truncate">{content.title}</p>
+            </div>
           </div>
           
-          <div className="px-3">
+          <div className="space-y-2">
+            <label className="text-sm font-medium">
+              Upvote Amount: {formatXNO(amount)} XNO
+            </label>
             <Slider
-              defaultValue={[0.01]}
-              max={0.1}
-              step={0.01}
               value={[amount]}
+              min={0.01}
+              max={1}
+              step={0.01}
               onValueChange={(value) => setAmount(value[0])}
+              disabled={isProcessing}
             />
-            <div className="flex justify-between text-xs text-muted-foreground mt-1">
-              <span>0.01</span>
-              <span>0.05</span>
-              <span>0.1</span>
+            <div className="grid grid-cols-3 gap-2 mt-1 text-xs text-gray-500">
+              <span>0.01 XNO</span>
+              <span className="text-center">0.5 XNO</span>
+              <span className="text-right">1 XNO</span>
             </div>
           </div>
-
-          <div className="bg-muted p-4 rounded-lg mt-2">
-            <div className="text-sm">
-              <div className="flex justify-between py-1">
-                <span>Creator receives (80%):</span>
-                <span className="font-semibold">{formatXNO(creatorAmount)} XNO</span>
-              </div>
-              <div className="flex justify-between py-1">
-                <span>Reward pool (20%):</span>
-                <span className="font-semibold">{formatXNO(poolAmount)} XNO</span>
-              </div>
-              <div className="flex justify-between py-1 border-t mt-1 pt-2">
-                <span className="font-medium">Total:</span>
-                <span className="font-semibold">{formatXNO(amount)} XNO</span>
-              </div>
+          
+          <div className="rounded-lg border border-gray-200 divide-y">
+            <div className="p-3 flex justify-between items-center">
+              <span className="text-sm">Creator receives (80%)</span>
+              <span className="font-medium">{formatXNO(creatorAmount)} XNO</span>
             </div>
+            <div className="p-3 flex justify-between items-center">
+              <span className="text-sm">Reward pool (20%)</span>
+              <span className="font-medium">{formatXNO(poolAmount)} XNO</span>
+            </div>
+          </div>
+          
+          <div className="text-xs text-gray-500 italic">
+            Note: Transaction may take a few seconds to process on the blockchain
           </div>
         </div>
-
+        
         <DialogFooter>
-          <Button 
-            variant="outline" 
-            onClick={onClose} 
-            disabled={upvoteMutation.isPending}
-          >
+          <Button variant="outline" onClick={onClose} disabled={isProcessing}>
             Cancel
           </Button>
-          <Button 
-            onClick={handleUpvote} 
-            disabled={upvoteMutation.isPending}
-            className="bg-gradient-to-r from-[#F7B801] to-[#F59E0B] hover:from-[#F59E0B] hover:to-[#F7B801]"
+          <Button
+            onClick={handleUpvote}
+            disabled={isProcessing || amount <= 0}
+            className="bg-primary"
           >
-            {upvoteMutation.isPending ? "Processing..." : "Upvote"}
+            {isProcessing ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Processing...
+              </>
+            ) : (
+              "Upvote & Pay"
+            )}
           </Button>
         </DialogFooter>
       </DialogContent>
