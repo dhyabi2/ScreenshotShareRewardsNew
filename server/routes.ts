@@ -8,6 +8,8 @@ import { fileProcessor } from "./utils/fileProcessor";
 import { xnoService } from "./utils/xnoService";
 import { walletService } from "./utils/walletService";
 import { rewardSystem } from "./utils/rewardSystem";
+import { poolWallet } from "./utils/poolWallet";
+import rewardRoutes from "./routes/rewardRoutes";
 
 const DAILY_UPLOAD_LIMIT = 5; // Maximum uploads per wallet per day
 const UPLOAD_DIR = path.join(process.cwd(), "uploads");
