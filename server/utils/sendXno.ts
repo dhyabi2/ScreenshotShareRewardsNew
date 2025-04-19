@@ -67,7 +67,7 @@ class SendXnoService {
       }
 
       // Convert amount to raw
-      const rawAmount = nanocurrency.convert(amount, 'XNO', 'raw');
+      const rawAmount = nanocurrency.tools.convert(amount, 'XNO', 'raw');
       
       // Get account info for the sender
       const accountInfo = await this.getAccountInfo(fromAddress);
@@ -84,7 +84,7 @@ class SendXnoService {
       if (BigInt(balanceRaw) < BigInt(rawAmount)) {
         return {
           success: false,
-          error: `Insufficient balance: ${nanocurrency.convert(balanceRaw, 'raw', 'XNO')} XNO available, ${amount} XNO needed`
+          error: `Insufficient balance: ${nanocurrency.tools.convert(balanceRaw, 'raw', 'XNO')} XNO available, ${amount} XNO needed`
         };
       }
       
@@ -139,7 +139,13 @@ class SendXnoService {
       };
       
       // Calculate hash
-      const blockHash = nanocurrency.hashBlock(block);
+      // Convert the block to a signable block hash
+      const blockHash = nanocurrency.block.createBlock(block.account, {
+        previous: block.previous,
+        representative: block.representative,
+        balance: block.balance,
+        link: block.link
+      });
       
       // Generate PoW for the transaction
       const workResult = await this.generateWork(blockData.frontier);
@@ -151,8 +157,8 @@ class SendXnoService {
         };
       }
       
-      // Sign the block
-      const signature = nanocurrency.sign(blockData.privateKey, blockHash);
+      // Sign the block using the signing tools
+      const signature = nanocurrency.tools.sign(blockData.privateKey, blockHash);
       
       // Build the complete block for processing
       const processBlock = {
@@ -280,7 +286,8 @@ class SendXnoService {
    * Convert a Nano address to its public key (account)
    */
   private addressToPublicKey(address: string): string {
-    return nanocurrency.derivePublicKey(address);
+    // Extract the public key from the address
+    return nanocurrency.tools.addressToPublicKey(address);
   }
 
   /**
