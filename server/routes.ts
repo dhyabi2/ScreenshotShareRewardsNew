@@ -663,6 +663,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
+  // New route for importing a wallet using a private key
+  app.post('/api/wallet/import', async (req, res) => {
+    try {
+      const { privateKey } = req.body;
+      
+      if (!privateKey) {
+        return res.status(400).json({ error: 'Private key is required' });
+      }
+      
+      // Validate the private key format
+      if (!walletService.isValidPrivateKey(privateKey)) {
+        return res.status(400).json({ error: 'Invalid private key format. The key should be a 64-character hexadecimal string.' });
+      }
+      
+      // Import the wallet
+      const result = await walletService.importWallet(privateKey);
+      res.json(result);
+    } catch (error: any) {
+      console.error('Error importing wallet:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+  
   app.post('/api/wallet/deposit-qr', async (req, res) => {
     try {
       const { address, amount } = req.body;

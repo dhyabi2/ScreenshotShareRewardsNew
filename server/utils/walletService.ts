@@ -937,6 +937,46 @@ class WalletService {
   }
   
   /**
+   * Import an existing wallet using a private key
+   * Returns the wallet address associated with the private key
+   */
+  async importWallet(privateKey: string): Promise<{ address: string }> {
+    try {
+      console.log('Importing wallet from private key');
+      
+      // First validate the private key format
+      if (!this.isValidPrivateKey(privateKey)) {
+        throw new Error('Invalid private key format');
+      }
+      
+      try {
+        // Use the library to derive the address from the private key
+        const publicKey = nacurrency.derivePublicKey(privateKey);
+        const address = nacurrency.deriveAddress(publicKey, { useNanoPrefix: true });
+        
+        console.log(`Imported wallet address: ${address.substring(0, 12)}...`);
+        
+        // Verify that we can get account info to confirm it's a valid address
+        try {
+          const accountInfo = await this.getAccountInfo(address);
+          console.log(`Account status: ${accountInfo && !accountInfo.error ? 'Existing account' : 'New or inactive account'}`);
+        } catch (error) {
+          // Just log this error but don't fail - the address might be valid but new
+          console.warn(`Note: Could not verify account info for imported wallet: ${error}`);
+        }
+        
+        return { address };
+      } catch (error) {
+        console.error('Error deriving address from private key:', error);
+        throw new Error('Unable to derive wallet address from this private key');
+      }
+    } catch (error) {
+      console.error('Error importing wallet:', error);
+      throw new Error(`Failed to import wallet: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+  
+  /**
    * Returns a known valid XNO wallet address from the list
    * This is for backup purposes only when the library fails
    */
