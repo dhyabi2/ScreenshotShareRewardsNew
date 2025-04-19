@@ -5,6 +5,7 @@ import { Content } from "@/types";
 import { api } from "@/lib/api";
 import { truncateAddress, formatXNO } from "@/lib/xno";
 import { useWallet } from "@/contexts/WalletContext";
+import { clientXnoService } from "@/lib/clientXnoService";
 import {
   Dialog,
   DialogContent,
@@ -46,7 +47,7 @@ export default function TipModal({
     refetchInterval: 10000, // Refresh every 10 seconds to get updated balance
   });
   
-  // Send tip mutation - uses real XNO transactions
+  // Send tip mutation - uses client-side XNO transaction processing (private key never leaves browser)
   const sendTipMutation = useMutation({
     mutationFn: (params: { 
       fromAddress: string,
@@ -55,12 +56,19 @@ export default function TipModal({
       amount: string,
       contentId: number
     }) => {
-      return api.sendTip(params);
+      // Use the client-side service to process the transaction
+      return clientXnoService.sendTip({
+        fromAddress: params.fromAddress,
+        privateKey: params.privateKey,
+        toAddress: params.toAddress,
+        amount: params.amount,
+        contentId: params.contentId
+      });
     },
     onSuccess: (data) => {
       toast({
         title: "Tip sent successfully!",
-        description: `You have tipped ${tipAmount} XNO to the creator.`,
+        description: `You have tipped ${tipAmount} XNO to the creator. Transaction hash: ${data.hash?.substring(0, 10)}...`,
       });
       setIsProcessing(false);
       onOpenChange(false);
@@ -133,9 +141,15 @@ export default function TipModal({
     
     setIsProcessing(true);
     
-    // If we have both wallet address and private key, use real XNO transaction
+    // If we have both wallet address and private key, use client-side processing
     if (activeWallet && privateKey) {
-      // Use real XNO transaction with the private key via the backend
+      // Show toast that transaction will be processed securely
+      toast({
+        title: "Processing transaction securely",
+        description: "Your private key will be processed locally and never sent to the server.",
+      });
+      
+      // Use client-side transaction processing (private key never leaves browser)
       sendTipMutation.mutate({
         fromAddress: activeWallet,
         privateKey: privateKey,

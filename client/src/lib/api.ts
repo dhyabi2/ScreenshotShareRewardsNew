@@ -234,7 +234,7 @@ export const api = {
   },
   
   // New client-side transaction endpoints
-  getAccountInfo: async (address: string): Promise<any> => {
+  getBlockchainAccountInfo: async (address: string): Promise<any> => {
     const response = await fetch("/api/wallet/account-info", {
       method: "POST",
       headers: { "Content-Type": "application/json" },

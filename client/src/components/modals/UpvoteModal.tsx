@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
+import { clientXnoService } from "@/lib/clientXnoService";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import {
@@ -14,7 +15,7 @@ import {
 import { Slider } from "@/components/ui/slider";
 import { formatXNO, truncateAddress } from "@/lib/utils";
 import { Content } from "@shared/schema";
-import { Loader2, Info } from "lucide-react";
+import { Loader2, Info, Shield } from "lucide-react";
 
 interface UpvoteModalProps {
   isOpen: boolean;

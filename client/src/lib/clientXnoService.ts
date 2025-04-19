@@ -60,7 +60,7 @@ export const clientXnoService = {
       const rawAmount = nanocurrency.tools.convert(amount, 'XNO', 'raw');
 
       // Get account info without sending the private key
-      const accountInfo = await api.getAccountInfo(fromAddress);
+      const accountInfo = await api.getBlockchainAccountInfo(fromAddress);
       
       if (!accountInfo || accountInfo.error === 'Account not found') {
         return {
